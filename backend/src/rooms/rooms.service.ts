@@ -12,5 +12,4 @@ export class RoomsService {
         // temporary implementation (no DB yet)
         return { roomId: id, exists: true }
     }
-
 }
