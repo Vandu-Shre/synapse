@@ -1,16 +1,15 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { RefObject, useEffect, useRef, useState } from "react";
 import { useDiagramStore } from "@/store/useDiagramStore";
+import { useRoomStore } from "@/store/useRoomStore";
 
 type DragState =
   | { mode: "idle" }
   | { mode: "ink" }
   | { mode: "node"; nodeId: string; offsetX: number; offsetY: number };
 
-type EdgeDraft =
-  | null
-  | { fromNodeId: string; toX: number; toY: number };
+type EdgeDraft = null | { fromNodeId: string; toX: number; toY: number };
 
 const getPortPosition = (
   node: { x: number; y: number; width: number; height: number },
@@ -82,7 +81,19 @@ const isWithinSnapDistance = (
   return false;
 };
 
-export default function Canvas() {
+export default function Canvas({
+  wsRef,
+  roomId,
+  userId,
+  wsReady,
+  hasRoomState,
+}: {
+  wsRef: RefObject<WebSocket | null>;
+  roomId: string;
+  userId: string;
+  wsReady: boolean;
+  hasRoomState: boolean;
+}) {
   const inkRef = useRef<HTMLCanvasElement>(null);
   const nodesRef = useRef<HTMLCanvasElement>(null);
   const [edgeDraft, setEdgeDraft] = useState<EdgeDraft>(null);
@@ -111,14 +122,34 @@ export default function Canvas() {
     }
   }, []);
 
-  // Seed nodes once
+  // Seed nodes once (and broadcast node:add so other clients get same IDs)
   useEffect(() => {
-    if (nodes.length === 0) {
-      addNode("react", 200, 200);
-      addNode("db", 500, 320);
+    if (!roomId || !userId) return;
+    if (!wsReady || !hasRoomState) return;
+    if (nodes.length !== 0) return;
+
+    console.log("🌱 Seeding initial nodes...");
+    const n1 = addNode("react", 200, 200);
+    const n2 = addNode("db", 500, 320);
+
+    console.log("✉️ Node 1:", n1.id);
+    console.log("✉️ Node 2:", n2.id);
+
+    const ws = wsRef.current;
+
+    if (ws && ws.readyState === WebSocket.OPEN && roomId) {
+      console.log("📤 Sending node:add for both nodes...");
+      ws.send(JSON.stringify({ type: "node:add", roomId, userId, node: n1 }));
+      ws.send(JSON.stringify({ type: "node:add", roomId, userId, node: n2 }));
+      console.log("✅ Sent both nodes");
+    } else {
+      console.warn("⚠️ WebSocket not ready:", {
+        ws: !!ws,
+        readyState: ws?.readyState,
+        roomId,
+      });
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [wsReady, hasRoomState, roomId, userId, nodes.length, addNode, wsRef]);
 
   // Helper: hit test nodes (top-most wins)
   const hitTestNode = (x: number, y: number) => {
@@ -140,6 +171,24 @@ export default function Canvas() {
     if (!ctx) return;
 
     ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    // Draw saved edges
+    for (const e of edges) {
+      const from = nodes.find((n) => n.id === e.fromNodeId);
+      const to = nodes.find((n) => n.id === e.toNodeId);
+      if (!from || !to) {
+        console.warn(`⚠️ Edge ${e.id} missing nodes: from=${!!from} to=${!!to}`);
+        continue;
+      }
+
+      const p1 = getPortPosition(from, e.fromPort);
+      const p2 = getPortPosition(to, e.toPort);
+
+      ctx.beginPath();
+      ctx.moveTo(p1.x, p1.y);
+      ctx.lineTo(p2.x, p2.y);
+      ctx.stroke();
+    }
 
     for (const n of nodes) {
       ctx.beginPath();
@@ -170,21 +219,6 @@ export default function Canvas() {
         ctx.arc(pos.x, pos.y, 8, 0, Math.PI * 2);
         ctx.stroke();
       }
-    }
-
-    // Draw saved edges 
-    for (const e of edges) {
-      const from = nodes.find((n) => n.id === e.fromNodeId);
-      const to = nodes.find((n) => n.id === e.toNodeId);
-      if (!from || !to) continue;
-
-      const p1 = getPortPosition(from, e.fromPort);
-      const p2 = getPortPosition(to, e.toPort);
-
-      ctx.beginPath();
-      ctx.moveTo(p1.x, p1.y);
-      ctx.lineTo(p2.x, p2.y);
-      ctx.stroke();
     }
 
     // Draw edge draft (line from node center to cursor)
@@ -226,34 +260,34 @@ export default function Canvas() {
     ctx.stroke();
   };
 
-  // Wrapper handlers (single source of truth)
+  // Wrapper handlers
   const onDown = (e: React.MouseEvent) => {
-  const x = e.clientX;
-  const y = e.clientY;
+    const x = e.clientX;
+    const y = e.clientY;
 
-  const hit = hitTestNode(x, y);
+    const hit = hitTestNode(x, y);
 
-  if (hit && e.shiftKey) {
-    // Start edge draft (connect mode)
-    setDrag({ mode: "idle" });
-    setEdgeDraft({ fromNodeId: hit.id, toX: x, toY: y });
-    return;
-  }
+    if (hit && e.shiftKey) {
+      // Start edge draft (connect mode)
+      setDrag({ mode: "idle" });
+      setEdgeDraft({ fromNodeId: hit.id, toX: x, toY: y });
+      return;
+    }
 
-  if (hit) {
-    // Start dragging node
-    setDrag({
-      mode: "node",
-      nodeId: hit.id,
-      offsetX: x - hit.x,
-      offsetY: y - hit.y,
-    });
-    return;
-  }
+    if (hit) {
+      // Start dragging node
+      setDrag({
+        mode: "node",
+        nodeId: hit.id,
+        offsetX: x - hit.x,
+        offsetY: y - hit.y,
+      });
+      return;
+    }
 
-  // Otherwise, start drawing ink
-  setDrag({ mode: "ink" });
-  inkStart(x, y);
+    // Otherwise, start drawing ink
+    setDrag({ mode: "ink" });
+    inkStart(x, y);
   };
 
   const onMove = (e: React.MouseEvent) => {
@@ -272,12 +306,32 @@ export default function Canvas() {
       } else {
         setSnapPreview(null);
       }
-
       return;
     }
 
     if (drag.mode === "node") {
-      moveNode(drag.nodeId, x - drag.offsetX, y - drag.offsetY);
+      const newX = x - drag.offsetX;
+      const newY = y - drag.offsetY;
+
+      // local move
+      moveNode(drag.nodeId, newX, newY);
+
+      // broadcast move
+      const ws = wsRef.current;
+      const { roomId, userId } = useRoomStore.getState();
+
+      if (ws && ws.readyState === WebSocket.OPEN && roomId) {
+        ws.send(
+          JSON.stringify({
+            type: "node:move",
+            roomId,
+            userId,
+            nodeId: drag.nodeId,
+            x: newX,
+            y: newY,
+          })
+        );
+      }
       return;
     }
 
@@ -286,42 +340,48 @@ export default function Canvas() {
     }
   };
 
-  const onUp = (e: React.MouseEvent) => {
+  const onUp = () => {
     if (edgeDraft) {
       const hit = hitTestNode(edgeDraft.toX, edgeDraft.toY);
 
-      if (!hit || hit.id === edgeDraft.fromNodeId) {
+      if (
+        !hit ||
+        hit.id === edgeDraft.fromNodeId ||
+        !isWithinSnapDistance(hit, edgeDraft.toX, edgeDraft.toY)
+      ) {
         setEdgeDraft(null);
+        setSnapPreview(null);
         setDrag({ mode: "idle" });
         return;
       }
 
-      if (!isWithinSnapDistance(hit, edgeDraft.toX, edgeDraft.toY)) {
-        // Not close to a port: cancel edge creation
+      const fromNode = nodes.find((n) => n.id === edgeDraft.fromNodeId);
+      if (!fromNode) {
         setEdgeDraft(null);
+        setSnapPreview(null);
         setDrag({ mode: "idle" });
         return;
       }
 
-      if (hit && hit.id !== edgeDraft.fromNodeId) {
-        const fromNode = nodes.find(n => n.id === edgeDraft.fromNodeId);
-        const toNode = hit;
+      const fromPort = getNearestPort(fromNode, edgeDraft.toX, edgeDraft.toY);
+      const toPort = getNearestPort(hit, edgeDraft.toX, edgeDraft.toY);
 
-        if (fromNode) {
-          const fromPort = getNearestPort(
-            fromNode,
-            edgeDraft.toX,
-            edgeDraft.toY
-          );
+      // Create local edge
+      const createdEdge = addEdge(edgeDraft.fromNodeId, hit.id, fromPort, toPort);
 
-          const toPort = getNearestPort(
-            toNode,
-            edgeDraft.toX,
-            edgeDraft.toY
-          );
+      // Broadcast edge:add with full edge payload (including id)
+      const ws = wsRef.current;
+      const { roomId, userId } = useRoomStore.getState();
 
-          addEdge(edgeDraft.fromNodeId, hit.id, fromPort, toPort);
-        }
+      if (ws && ws.readyState === WebSocket.OPEN && roomId) {
+        ws.send(
+          JSON.stringify({
+            type: "edge:add",
+            roomId,
+            userId,
+            edge: createdEdge,
+          })
+        );
       }
 
       setEdgeDraft(null);

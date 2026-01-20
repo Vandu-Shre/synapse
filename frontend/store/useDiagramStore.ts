@@ -11,19 +11,22 @@ export type DiagramNode = {
   height: number;
 };
 
+export type Port = "top" | "right" | "bottom" | "left";
+
 export type DiagramEdge = {
   id: string;
   fromNodeId: string;
-  fromPort: "top" | "right" | "bottom" | "left";
+  fromPort: Port;
   toNodeId: string;
-  toPort: "top" | "right" | "bottom" | "left";
+  toPort: Port;
 };
 
 type DiagramState = {
   nodes: DiagramNode[];
   edges: DiagramEdge[];
 
-  addNode: (type: NodeType, x: number, y: number) => void;
+  // local actions
+  addNode: (type: NodeType, x: number, y: number) => DiagramNode;
   moveNode: (id: string, x: number, y: number) => void;
   getNode: (id: string) => DiagramNode | undefined;
   addEdge: (
@@ -31,7 +34,11 @@ type DiagramState = {
     toNodeId: string,
     fromPort: "top" | "right" | "bottom" | "left",
     toPort: "top" | "right" | "bottom" | "left"
-    ) => void;
+    ) => DiagramEdge;
+
+  // remote-safe actions
+  upsertNode: (node: DiagramNode) => void;
+  addEdgeRecord: (edge: DiagramEdge) => void;
 };
 
 export const useDiagramStore = create<DiagramState>((set, get) => ({
@@ -40,19 +47,18 @@ export const useDiagramStore = create<DiagramState>((set, get) => ({
 
   addNode: (type, x, y) => {
     const id = crypto.randomUUID();
+    const node: DiagramNode = {
+      id,
+      type,
+      x,
+      y,
+      width: 120,
+      height: 80,
+    };
     set((state) => ({
-      nodes: [
-        ...state.nodes,
-        {
-          id,
-          type,
-          x,
-          y,
-          width: 120,
-          height: 80,
-        },
-      ],
+      nodes: [...state.nodes, node],
     }));
+    return node;
   },
 
   moveNode: (id, x, y) => {
@@ -64,19 +70,34 @@ export const useDiagramStore = create<DiagramState>((set, get) => ({
   getNode: (id) => get().nodes.find((n) => n.id === id),
 
   addEdge: (fromNodeId, toNodeId, fromPort, toPort) => {
-    const id = crypto.randomUUID();
-    set((state) => ({
-        edges: [
-        ...state.edges,
-        {
-            id,
-            fromNodeId,
-            fromPort,
-            toNodeId,
-            toPort,
-        },
-        ],
-    }));
+    const edge: DiagramEdge = {
+        id: crypto.randomUUID(),
+        fromNodeId,
+        fromPort,
+        toNodeId,
+        toPort,
+    };
+
+    set((s) => ({ edges: [...s.edges, edge] }));
+    return edge;
+  },
+
+  upsertNode: (node) => {
+    const existing = get().nodes.find((n) => n.id === node.id);
+    if (existing) {
+      set((s) => ({
+        nodes: s.nodes.map((n) => (n.id === node.id ? { ...n, ...node } : n)),
+      }));
+    } else {
+      set((s) => ({ nodes: [...s.nodes, node] }));
+    }
+  },
+
+  addEdgeRecord: (edge) => {
+    const exists = get().edges.some((e) => e.id === edge.id);
+    if (exists) return;
+
+    set((s) => ({ edges: [...s.edges, edge] }));
   },
 
 }));
