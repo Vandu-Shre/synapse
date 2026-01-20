@@ -38,49 +38,24 @@ export default function HomePage() {
   }
 
   return (
-    <div
-      style={{
-        display: "flex",
-        flexDirection: "column",
-        alignItems: "center",
-        justifyContent: "center",
-        height: "100vh",
-        gap: "12px",
-      }}
-    >
-      <h1>Welcome to Synapse</h1>
-      <p>Create or join a room</p>
+    <div className="home-container">
+      <div className="home-content">
+        <h1>Synapse</h1>
+        <p>Create or join a room</p>
 
-      <input
-        type="text"
-        placeholder="Rnter room Id"
-        value={roomId}
-        onChange={(e) => setRoomId(e.target.value)}
-        style={{
-          padding: "8px 12px",
-          borderRadius: "6px",
-          border: "1px solid #666",
-        }}
-      />
+        <input
+          type="text"
+          placeholder="Enter room ID"
+          value={roomId}
+          onChange={(e) => setRoomId(e.target.value)}
+          className="home-input"
+        />
 
-      <button
-        onClick={handleJoin}
-        style={{
-          padding: "8px 12px",
-          cursor: "pointer",
-          borderRadius: "6px",
-          border: "1px solid #333",
-        }}
-      >Join room</button>
-
-      <button onClick={handleCreate}
-        style={{
-          padding: "8px 12px",
-          cursor: "pointer",
-          borderRadius: "6px",
-          border: "1px solid #333",
-        }}
-      >Create Room</button>
+        <div className="home-buttons">
+          <button onClick={handleJoin} className="home-button">Join room</button>
+          <button onClick={handleCreate} className="home-button primary">Create Room</button>
+        </div>
+      </div>
     </div>
   )
 }

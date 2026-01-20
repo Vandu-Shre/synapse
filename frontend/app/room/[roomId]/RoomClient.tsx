@@ -13,6 +13,7 @@ export default function RoomClient({ roomId }: { roomId: string }) {
 
   return (
   <>
+    <h3>Room -- {roomId}</h3>
     <Canvas />
   </>
 );
