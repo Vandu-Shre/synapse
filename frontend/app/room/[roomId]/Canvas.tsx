@@ -3,6 +3,7 @@
 import { RefObject, useEffect, useRef, useState } from "react";
 import { useDiagramStore } from "@/store/useDiagramStore";
 import { useToolStore } from "@/store/useToolStore";
+import { NODE_THEME } from "@/ui/nodeTheme";
 
 type DragState =
   | { mode: "idle" }
@@ -89,6 +90,24 @@ const isWithinSnapDistance = (
   return false;
 };
 
+const roundRectPath = (
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  w: number,
+  h: number,
+  r: number
+) => {
+  const radius = Math.min(r, w / 2, h / 2);
+  ctx.beginPath();
+  ctx.moveTo(x + radius, y);
+  ctx.arcTo(x + w, y, x + w, y + h, radius);
+  ctx.arcTo(x + w, y + h, x, y + h, radius);
+  ctx.arcTo(x, y + h, x, y, radius);
+  ctx.arcTo(x, y, x + w, y, radius);
+  ctx.closePath();
+};
+
 export default function Canvas({
   wsRef,
   roomId,
@@ -129,6 +148,13 @@ export default function Canvas({
     id: string;
     tool: "pen" | "highlighter";
     points: Array<{ x: number; y: number }>;
+  }>(null);
+
+  const lastMoveTimeRef = useRef(0);
+  const pendingMoveRef = useRef<null | {
+    nodeId: string;
+    x: number;
+    y: number;
   }>(null);
 
   // Setup all canvases size
@@ -264,36 +290,61 @@ export default function Canvas({
       ctx.beginPath();
       ctx.moveTo(p1.x, p1.y);
       ctx.lineTo(p2.x, p2.y);
+      ctx.lineWidth = 2;
+      ctx.strokeStyle = "rgba(15,23,42,0.38)";
       ctx.stroke();
     }
 
+    // Draw nodes with elegant glass styling
     for (const n of nodes) {
-      ctx.beginPath();
-      ctx.rect(n.x, n.y, n.width, n.height);
+      const t = NODE_THEME[n.type];
+
+      ctx.save();
+
+      // soft shadow for "floating glass"
+      ctx.shadowColor = "rgba(15,23,42,0.10)";
+      ctx.shadowBlur = 18;
+      ctx.shadowOffsetY = 10;
+
+      roundRectPath(ctx, n.x, n.y, n.width, n.height, 18);
+
+      // white glass base
+      ctx.fillStyle = "rgba(255,255,255,0.55)";
+      ctx.fill();
+
+      // stop shadow for strokes
+      ctx.shadowColor = "transparent";
+      ctx.lineWidth = 1.5;
+      ctx.strokeStyle = "rgba(255,255,255,0.65)";
       ctx.stroke();
 
-      ctx.font = "16px system-ui";
-      ctx.fillText(n.type.toUpperCase(), n.x + 12, n.y + 28);
+      // tint overlay (type color)
+      ctx.fillStyle = t.fill;
+      ctx.fill();
 
-      const ports: Array<"top" | "right" | "bottom" | "left"> = [
-        "top",
-        "right",
-        "bottom",
-        "left",
-      ];
+      // border tint
+      ctx.lineWidth = 1.6;
+      ctx.strokeStyle = t.stroke;
+      ctx.stroke();
 
-      for (const p of ports) {
-        const pos = getPortPosition(n, p);
-        ctx.beginPath();
-        ctx.arc(pos.x, pos.y, 5, 0, Math.PI * 2);
-        ctx.stroke();
-      }
+      // label (centered)
+      const label = n.label.toUpperCase();
+      ctx.font = "600 14px ui-sans-serif, system-ui, -apple-system";
+      ctx.fillStyle = "rgba(15,23,42,0.82)";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillText(label, n.x + n.width / 2, n.y + n.height / 2);
 
-      // Highlight snap preview port
-      if (snapPreview && snapPreview.nodeId === n.id) {
+      ctx.restore();
+
+      // ✅ Only show snap hint while connecting
+      const isConnecting = !!edgeDraft;
+      if (isConnecting && snapPreview?.nodeId === n.id) {
         const pos = getPortPosition(n, snapPreview.port);
         ctx.beginPath();
-        ctx.arc(pos.x, pos.y, 8, 0, Math.PI * 2);
+        ctx.arc(pos.x, pos.y, 10, 0, Math.PI * 2);
+        ctx.strokeStyle = t.stroke;
+        ctx.lineWidth = 2.5;
         ctx.stroke();
       }
     }
@@ -308,7 +359,11 @@ export default function Canvas({
         ctx.beginPath();
         ctx.moveTo(p1.x, p1.y);
         ctx.lineTo(edgeDraft.toX, edgeDraft.toY);
+        ctx.strokeStyle = "rgba(109,94,252,0.40)";
+        ctx.lineWidth = 2;
+        ctx.setLineDash([4, 4]);
         ctx.stroke();
+        ctx.setLineDash([]);
       }
     }
   }, [nodes, edges, edgeDraft, snapPreview]);
@@ -441,23 +496,30 @@ export default function Canvas({
       const newX = x - drag.offsetX;
       const newY = y - drag.offsetY;
 
-      // local move
+      // local move (always)
       moveNode(drag.nodeId, newX, newY);
 
-      // broadcast move
-      const ws = wsRef.current;
-
-      if (ws && ws.readyState === WebSocket.OPEN && roomId) {
-        ws.send(
-          JSON.stringify({
-            type: "node:move",
-            roomId,
-            userId,
-            nodeId: drag.nodeId,
-            x: newX,
-            y: newY,
-          })
-        );
+      // throttled broadcast (at most every ~30ms)
+      const now = Date.now();
+      if (now - lastMoveTimeRef.current >= 30) {
+        const ws = wsRef.current;
+        if (ws && ws.readyState === WebSocket.OPEN && roomId) {
+          ws.send(
+            JSON.stringify({
+              type: "node:move",
+              roomId,
+              userId,
+              nodeId: drag.nodeId,
+              x: newX,
+              y: newY,
+            })
+          );
+        }
+        lastMoveTimeRef.current = now;
+        pendingMoveRef.current = null;
+      } else {
+        // store pending move to send on mouseUp
+        pendingMoveRef.current = { nodeId: drag.nodeId, x: newX, y: newY };
       }
       return;
     }
@@ -468,6 +530,25 @@ export default function Canvas({
   };
 
   const onUp = () => {
+    // Send any pending node:move before committing stroke
+    if (drag.mode === "node" && pendingMoveRef.current) {
+      const p = pendingMoveRef.current;
+      const ws = wsRef.current;
+      if (ws && ws.readyState === WebSocket.OPEN && roomId) {
+        ws.send(
+          JSON.stringify({
+            type: "node:move",
+            roomId,
+            userId,
+            nodeId: p.nodeId,
+            x: p.x,
+            y: p.y,
+          })
+        );
+      }
+      pendingMoveRef.current = null;
+    }
+
     // Commit active stroke
     if (activeStroke) {
       const stroke = {
@@ -550,23 +631,88 @@ export default function Canvas({
 
   return (
     <div
-      style={{ position: "relative", width: "100vw", height: "100vh" }}
+      style={{
+        position: "relative",
+        width: "100vw",
+        height: "100vh",
+        margin: 0,
+        padding: 0,
+        overflow: "hidden",
+        background: "transparent",
+        boxShadow: "inset 0 0 0 1px rgba(15,23,42,0.04)",
+      }}
       onMouseDown={onDown}
       onMouseMove={onMove}
       onMouseUp={onUp}
       onMouseLeave={onUp}
     >
+      {/* Background layer with sparkly grid */}
+      <div
+        style={{
+          position: "absolute",
+          inset: 0,
+          background: `
+            radial-gradient(1000px 600px at 18% 12%, rgba(109, 94, 252, 0.08), transparent 60%),
+            radial-gradient(900px 600px at 88% 16%, rgba(255, 119, 200, 0.07), transparent 62%),
+            radial-gradient(900px 600px at 62% 92%, rgba(102, 211, 199, 0.07), transparent 62%),
+            radial-gradient(circle at 1px 1px, rgba(15, 23, 42, 0.045) 1px, transparent 0) 0 0 / 28px 28px,
+            linear-gradient(#ffffff, #ffffff)
+          `,
+          pointerEvents: "none",
+        }}
+      />
+
       {/* Ink layer */}
       <canvas
         ref={inkRef}
-        style={{ position: "absolute", inset: 0, background: "#fff" }}
+        style={{
+          position: "absolute",
+          inset: 0,
+          background: "transparent",
+          display: "block",
+        }}
       />
 
       {/* Strokes layer (synced drawings) */}
-      <canvas ref={strokesRef} style={{ position: "absolute", inset: 0 }} />
+      <canvas
+        ref={strokesRef}
+        style={{
+          position: "absolute",
+          inset: 0,
+          display: "block",
+        }}
+      />
 
       {/* Nodes layer */}
-      <canvas ref={nodesRef} style={{ position: "absolute", inset: 0 }} />
+      <canvas
+        ref={nodesRef}
+        style={{
+          position: "absolute",
+          inset: 0,
+          display: "block",
+        }}
+      />
+
+      {/* Synapse badge */}
+      <div
+        style={{
+          position: "absolute",
+          left: 16,
+          bottom: 16,
+          padding: "10px 12px",
+          borderRadius: 999,
+          background: "rgba(255,255,255,0.92)",
+          border: "1px solid rgba(15,23,42,0.10)",
+          boxShadow: "0 18px 55px rgba(15,23,42,0.12)",
+          backdropFilter: "blur(12px)",
+          fontWeight: 800,
+          color: "#0f172a",
+          fontSize: 13,
+          zIndex: 40,
+        }}
+      >
+        🧠 Synapse
+      </div>
     </div>
   );
 }

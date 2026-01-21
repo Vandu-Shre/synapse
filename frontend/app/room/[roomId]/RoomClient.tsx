@@ -20,8 +20,8 @@ export default function RoomClient({ roomId }: { roomId: string }) {
   const { setRoomId, userId, socketStatus, setSocketStatus } = useRoomStore();
   const upsertNode = useDiagramStore((s) => s.upsertNode);
   const moveNode = useDiagramStore((s) => s.moveNode);
-  const addEdgeRecord = useDiagramStore((s) => s.addEdgeRecord);
-  const addStrokeRecord = useDiagramStore((s) => s.addStrokeRecord);
+  const upsertEdgeRecord = useDiagramStore((s) => s.upsertEdgeRecord);
+  const upsertStrokeRecord = useDiagramStore((s) => s.upsertStrokeRecord);
   const deleteStroke = useDiagramStore((s) => s.deleteStroke);
 
   const wsRef = useRef<WebSocket | null>(null);
@@ -77,12 +77,12 @@ export default function RoomClient({ roomId }: { roomId: string }) {
             upsertNode(node);
           }
           for (const edge of msg.edges) {
-            console.log(`   ↳ Adding edge ${edge.id}`);
-            addEdgeRecord(edge);
+            console.log(`   ↳ Upserting edge ${edge.id}`);
+            upsertEdgeRecord(edge);
           }
           for (const stroke of strokes) {
-            console.log(`   ↳ Adding stroke ${stroke.id}`);
-            addStrokeRecord(stroke);
+            console.log(`   ↳ Upserting stroke ${stroke.id}`);
+            upsertStrokeRecord(stroke);
           }
           setHasRoomState(true);
           return;
@@ -100,13 +100,13 @@ export default function RoomClient({ roomId }: { roomId: string }) {
         }
 
         if (msg.type === "edge:add") {
-          console.log(`   ↳ Adding edge ${msg.edge.id}`);
-          addEdgeRecord(msg.edge);
+          console.log(`   ↳ Upserting edge ${msg.edge.id}`);
+          upsertEdgeRecord(msg.edge);
         }
 
         if (msg.type === "stroke:add") {
-          console.log(`   ↳ Adding stroke ${msg.stroke.id}`);
-          addStrokeRecord(msg.stroke);
+          console.log(`   ↳ Upserting stroke ${msg.stroke.id}`);
+          upsertStrokeRecord(msg.stroke);
         }
 
         if (msg.type === "stroke:delete") {
@@ -140,10 +140,10 @@ export default function RoomClient({ roomId }: { roomId: string }) {
       wsRef.current = null;
       connectingRef.current = false;
     };
-  }, [roomId, userId, setSocketStatus, upsertNode, moveNode, addEdgeRecord, addStrokeRecord, deleteStroke]);
+  }, [roomId, userId, setSocketStatus, upsertNode, moveNode, upsertEdgeRecord, upsertStrokeRecord, deleteStroke]);
 
   return (
-    <div style={{ position: "relative" }}>
+    <div style={{ position: "relative", background: "var(--canvas)", width: "100vw", height: "100vh" }}>
       <Toolbar />
       <NodePalette wsRef={wsRef} roomId={roomId} userId={userId} />
       <Canvas wsRef={wsRef} roomId={roomId} userId={userId} wsReady={wsReady} hasRoomState={hasRoomState} />

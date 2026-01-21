@@ -5,6 +5,7 @@ export type NodeType = "react" | "db" | "api" | "service" | "queue" | "cache" | 
 export type DiagramNode = {
   id: string;
   type: NodeType;
+  label: string;
   x: number;
   y: number;
   width: number;
@@ -58,13 +59,15 @@ type DiagramState = {
     toNodeId: string,
     fromPort: "top" | "right" | "bottom" | "left",
     toPort: "top" | "right" | "bottom" | "left"
-    ) => DiagramEdge;
+  ) => DiagramEdge;
 
   // remote-safe actions
   upsertNode: (node: DiagramNode) => void;
+  upsertEdgeRecord: (edge: DiagramEdge) => void;
   addEdgeRecord: (edge: DiagramEdge) => void;
 
   // stroke actions
+  upsertStrokeRecord: (stroke: DiagramStroke) => void;
   addStrokeRecord: (stroke: DiagramStroke) => void;
   deleteStroke: (id: string) => void;
 };
@@ -81,6 +84,7 @@ export const useDiagramStore = create<DiagramState>((set, get) => ({
     const node: DiagramNode = {
       id,
       type,
+      label: tpl.label,
       x,
       y,
       width: tpl.width,
@@ -103,11 +107,11 @@ export const useDiagramStore = create<DiagramState>((set, get) => ({
 
   addEdge: (fromNodeId, toNodeId, fromPort, toPort) => {
     const edge: DiagramEdge = {
-        id: crypto.randomUUID(),
-        fromNodeId,
-        fromPort,
-        toNodeId,
-        toPort,
+      id: crypto.randomUUID(),
+      fromNodeId,
+      fromPort,
+      toNodeId,
+      toPort,
     };
 
     set((s) => ({ edges: [...s.edges, edge] }));
@@ -125,11 +129,31 @@ export const useDiagramStore = create<DiagramState>((set, get) => ({
     }
   },
 
+  upsertEdgeRecord: (edge) => {
+    set((s) => {
+      const idx = s.edges.findIndex((e) => e.id === edge.id);
+      if (idx === -1) return { edges: [...s.edges, edge] };
+      const next = s.edges.slice();
+      next[idx] = edge;
+      return { edges: next };
+    });
+  },
+
   addEdgeRecord: (edge) => {
     const exists = get().edges.some((e) => e.id === edge.id);
     if (exists) return;
 
     set((s) => ({ edges: [...s.edges, edge] }));
+  },
+
+  upsertStrokeRecord: (stroke) => {
+    set((s) => {
+      const idx = s.strokes.findIndex((x) => x.id === stroke.id);
+      if (idx === -1) return { strokes: [...s.strokes, stroke] };
+      const next = s.strokes.slice();
+      next[idx] = stroke;
+      return { strokes: next };
+    });
   },
 
   addStrokeRecord: (stroke) => {

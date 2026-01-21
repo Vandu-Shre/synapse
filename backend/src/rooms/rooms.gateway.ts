@@ -14,7 +14,14 @@ type StrokeAddMsg = { type: 'stroke:add'; roomId: string; userId: string; stroke
 type StrokeDeleteMsg = { type: 'stroke:delete'; roomId: string; userId: string; strokeId: string };
 type RoomStateMsg = { type: 'room:state'; nodes: any[]; edges: any[]; strokes: any[] };
 
-type WSMessage = JoinRoomMsg | NodeAddMsg | NodeMoveMsg | EdgeAddMsg | StrokeAddMsg | StrokeDeleteMsg | RoomStateMsg;
+type WSMessage =
+  | JoinRoomMsg
+  | NodeAddMsg
+  | NodeMoveMsg
+  | EdgeAddMsg
+  | StrokeAddMsg
+  | StrokeDeleteMsg
+  | RoomStateMsg;
 
 @WebSocketGateway({
   cors: { origin: 'http://localhost:3000' },
@@ -166,20 +173,21 @@ export class RoomsGateway implements OnGatewayConnection, OnGatewayDisconnect {
     }
 
     if (message.type === 'stroke:add') {
-      console.log(`🎨 Broadcasting stroke:add in room ${roomId}`, message.stroke.id);
+      console.log(`🖍️ Broadcasting stroke:add in room ${roomId}`, message.stroke.id);
+
       const idx = state.strokes.findIndex((s) => s.id === message.stroke.id);
-      if (idx === -1) {
-        state.strokes.push(message.stroke);
-      } else {
-        state.strokes[idx] = message.stroke;
-      }
+      if (idx === -1) state.strokes.push(message.stroke);
+      else state.strokes[idx] = message.stroke;
+
       this.broadcast(roomId, message);
       return;
     }
 
     if (message.type === 'stroke:delete') {
-      console.log(`🗑️ Broadcasting stroke:delete in room ${roomId}`, message.strokeId);
+      console.log(`🧽 Broadcasting stroke:delete in room ${roomId}`, message.strokeId);
+
       state.strokes = state.strokes.filter((s) => s.id !== message.strokeId);
+
       this.broadcast(roomId, message);
       return;
     }
