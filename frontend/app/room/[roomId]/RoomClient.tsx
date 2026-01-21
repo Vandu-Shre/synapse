@@ -4,19 +4,25 @@ import { useEffect, useRef, useState } from "react";
 import { useRoomStore } from "@/store/useRoomStore";
 import { useDiagramStore } from "@/store/useDiagramStore";
 import Canvas from "./Canvas";
+import { Toolbar } from "@/components/Toolbar";
+import { NodePalette } from "@/components/NodePalette";
 
 type WSMessage =
   | { type: "join-room"; roomId: string; userId: string }
   | { type: "node:add"; roomId: string; userId: string; node: any }
   | { type: "node:move"; roomId: string; userId: string; nodeId: string; x: number; y: number }
   | { type: "edge:add"; roomId: string; userId: string; edge: any }
-  | { type: "room:state"; nodes: any[]; edges: any[] };
+  | { type: "stroke:add"; roomId: string; userId: string; stroke: any }
+  | { type: "stroke:delete"; roomId: string; userId: string; strokeId: string }
+  | { type: "room:state"; nodes: any[]; edges: any[]; strokes: any[] };
 
 export default function RoomClient({ roomId }: { roomId: string }) {
   const { setRoomId, userId, socketStatus, setSocketStatus } = useRoomStore();
   const upsertNode = useDiagramStore((s) => s.upsertNode);
   const moveNode = useDiagramStore((s) => s.moveNode);
   const addEdgeRecord = useDiagramStore((s) => s.addEdgeRecord);
+  const addStrokeRecord = useDiagramStore((s) => s.addStrokeRecord);
+  const deleteStroke = useDiagramStore((s) => s.deleteStroke);
 
   const wsRef = useRef<WebSocket | null>(null);
   const connectingRef = useRef(false);
@@ -51,9 +57,21 @@ export default function RoomClient({ roomId }: { roomId: string }) {
         console.log("📨 RECEIVED message type:", msg.type, msg);
 
         if (msg.type === "room:state") {
-          console.log("🔄 Syncing room state:", msg.nodes.length, "nodes,", msg.edges.length, "edges");
+          const strokes = (msg as any).strokes ?? [];
+
+          console.log(
+            "🔄 Syncing room state:",
+            msg.nodes.length,
+            "nodes,",
+            msg.edges.length,
+            "edges,",
+            strokes.length,
+            "strokes"
+          );
           console.log(`   Node IDs: ${msg.nodes.map((n: any) => n.id).join(", ") || "none"}`);
           console.log(`   Edge IDs: ${msg.edges.map((e: any) => e.id).join(", ") || "none"}`);
+          console.log(`   Stroke IDs: ${strokes.map((s: any) => s.id).join(", ") || "none"}`);
+
           for (const node of msg.nodes) {
             console.log(`   ↳ Upserting node ${node.id}`);
             upsertNode(node);
@@ -61,6 +79,10 @@ export default function RoomClient({ roomId }: { roomId: string }) {
           for (const edge of msg.edges) {
             console.log(`   ↳ Adding edge ${edge.id}`);
             addEdgeRecord(edge);
+          }
+          for (const stroke of strokes) {
+            console.log(`   ↳ Adding stroke ${stroke.id}`);
+            addStrokeRecord(stroke);
           }
           setHasRoomState(true);
           return;
@@ -81,6 +103,16 @@ export default function RoomClient({ roomId }: { roomId: string }) {
           console.log(`   ↳ Adding edge ${msg.edge.id}`);
           addEdgeRecord(msg.edge);
         }
+
+        if (msg.type === "stroke:add") {
+          console.log(`   ↳ Adding stroke ${msg.stroke.id}`);
+          addStrokeRecord(msg.stroke);
+        }
+
+        if (msg.type === "stroke:delete") {
+          console.log(`   ↳ Deleting stroke ${msg.strokeId}`);
+          deleteStroke(msg.strokeId);
+        }
       } catch (e) {
         console.error("Bad WS message", evt.data);
       }
@@ -97,7 +129,7 @@ export default function RoomClient({ roomId }: { roomId: string }) {
       connectingRef.current = false;
       setWsReady(false);
       setHasRoomState(false);
-      setSocketStatus(socketStatus === "connected" ? "disconnected" : "error");
+      setSocketStatus("disconnected");
       console.log("❌ WebSocket closed");
     };
 
@@ -108,7 +140,13 @@ export default function RoomClient({ roomId }: { roomId: string }) {
       wsRef.current = null;
       connectingRef.current = false;
     };
-  }, [roomId, userId, setSocketStatus, upsertNode, moveNode, addEdgeRecord]);
+  }, [roomId, userId, setSocketStatus, upsertNode, moveNode, addEdgeRecord, addStrokeRecord, deleteStroke]);
 
-  return <Canvas wsRef={wsRef} roomId={roomId} userId={userId} wsReady={wsReady} hasRoomState={hasRoomState} />;
+  return (
+    <div style={{ position: "relative" }}>
+      <Toolbar />
+      <NodePalette wsRef={wsRef} roomId={roomId} userId={userId} />
+      <Canvas wsRef={wsRef} roomId={roomId} userId={userId} wsReady={wsReady} hasRoomState={hasRoomState} />
+    </div>
+  );
 }

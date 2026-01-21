@@ -10,9 +10,11 @@ type JoinRoomMsg = { type: 'join-room'; roomId: string; userId: string };
 type NodeAddMsg = { type: 'node:add'; roomId: string; userId: string; node: any };
 type NodeMoveMsg = { type: 'node:move'; roomId: string; userId: string; nodeId: string; x: number; y: number };
 type EdgeAddMsg = { type: 'edge:add'; roomId: string; userId: string; edge: any };
-type RoomStateMsg = { type: 'room:state'; nodes: any[]; edges: any[] };
+type StrokeAddMsg = { type: 'stroke:add'; roomId: string; userId: string; stroke: any };
+type StrokeDeleteMsg = { type: 'stroke:delete'; roomId: string; userId: string; strokeId: string };
+type RoomStateMsg = { type: 'room:state'; nodes: any[]; edges: any[]; strokes: any[] };
 
-type WSMessage = JoinRoomMsg | NodeAddMsg | NodeMoveMsg | EdgeAddMsg | RoomStateMsg;
+type WSMessage = JoinRoomMsg | NodeAddMsg | NodeMoveMsg | EdgeAddMsg | StrokeAddMsg | StrokeDeleteMsg | RoomStateMsg;
 
 @WebSocketGateway({
   cors: { origin: 'http://localhost:3000' },
@@ -23,7 +25,7 @@ export class RoomsGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
   private clientRoom = new Map<WebSocket, string>();
   private rooms = new Map<string, Set<WebSocket>>();
-  private roomState = new Map<string, { nodes: any[]; edges: any[] }>();
+  private roomState = new Map<string, { nodes: any[]; edges: any[]; strokes: any[] }>();
 
   handleConnection(client: WebSocket) {
     console.log('🔌 Client connected');
@@ -64,21 +66,23 @@ export class RoomsGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
     if (!this.rooms.has(roomId)) {
       this.rooms.set(roomId, new Set());
-      this.roomState.set(roomId, { nodes: [], edges: [] });
+      this.roomState.set(roomId, { nodes: [], edges: [], strokes: [] });
     }
     this.rooms.get(roomId)!.add(client);
 
     // Send current room state to the joining client
     const state = this.roomState.get(roomId);
     if (state) {
-      console.log(`📤 Sending room state to client: ${state.nodes.length} nodes, ${state.edges.length} edges`);
+      console.log(`📤 Sending room state to client: ${state.nodes.length} nodes, ${state.edges.length} edges, ${state.strokes.length} strokes`);
       console.log(`   Nodes: ${state.nodes.map((n) => n.id).join(", ") || "none"}`);
       console.log(`   Edges: ${state.edges.map((e) => e.id).join(", ") || "none"}`);
+      console.log(`   Strokes: ${state.strokes.map((s) => s.id).join(", ") || "none"}`);
       
       const stateMsg: RoomStateMsg = {
         type: 'room:state',
         nodes: state.nodes,
         edges: state.edges,
+        strokes: state.strokes,
       };
       
       if (client.readyState === client.OPEN) {
@@ -128,18 +132,12 @@ export class RoomsGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
     if (message.type === 'node:add') {
       console.log(`📦 Broadcasting node:add in room ${roomId}`, message.node.id);
-      console.log(`   Before: ${state.nodes.length} nodes`);
-      
-      // Deduplicate: upsert instead of push
       const idx = state.nodes.findIndex((n) => n.id === message.node.id);
       if (idx === -1) {
         state.nodes.push(message.node);
       } else {
         state.nodes[idx] = message.node;
       }
-      
-      console.log(`   After: ${state.nodes.length} nodes`);
-      console.log(`   All nodes: ${state.nodes.map((n) => n.id).join(", ")}`);
       this.broadcast(roomId, message);
       return;
     }
@@ -157,15 +155,31 @@ export class RoomsGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
     if (message.type === 'edge:add') {
       console.log(`🔗 Broadcasting edge:add in room ${roomId}`, message.edge.id);
-      
-      // Deduplicate: upsert instead of push
       const idx = state.edges.findIndex((e) => e.id === message.edge.id);
       if (idx === -1) {
         state.edges.push(message.edge);
       } else {
         state.edges[idx] = message.edge;
       }
-      
+      this.broadcast(roomId, message);
+      return;
+    }
+
+    if (message.type === 'stroke:add') {
+      console.log(`🎨 Broadcasting stroke:add in room ${roomId}`, message.stroke.id);
+      const idx = state.strokes.findIndex((s) => s.id === message.stroke.id);
+      if (idx === -1) {
+        state.strokes.push(message.stroke);
+      } else {
+        state.strokes[idx] = message.stroke;
+      }
+      this.broadcast(roomId, message);
+      return;
+    }
+
+    if (message.type === 'stroke:delete') {
+      console.log(`🗑️ Broadcasting stroke:delete in room ${roomId}`, message.strokeId);
+      state.strokes = state.strokes.filter((s) => s.id !== message.strokeId);
       this.broadcast(roomId, message);
       return;
     }

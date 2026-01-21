@@ -1,6 +1,6 @@
 import { create } from "zustand";
 
-export type NodeType = "react" | "db";
+export type NodeType = "react" | "db" | "api" | "service" | "queue" | "cache" | "cloud" | "text";
 
 export type DiagramNode = {
   id: string;
@@ -21,9 +21,33 @@ export type DiagramEdge = {
   toPort: Port;
 };
 
+export type StrokeTool = "pen" | "highlighter";
+
+export type StrokePoint = { x: number; y: number };
+
+export type DiagramStroke = {
+  id: string;
+  tool: StrokeTool;
+  points: StrokePoint[];
+  width: number;
+  opacity: number;
+};
+
+const NODE_TEMPLATES: Record<NodeType, { width: number; height: number; label: string }> = {
+  react: { width: 120, height: 80, label: "React" },
+  db: { width: 120, height: 80, label: "DB" },
+  api: { width: 140, height: 80, label: "API" },
+  service: { width: 150, height: 80, label: "Service" },
+  queue: { width: 140, height: 80, label: "Queue" },
+  cache: { width: 140, height: 80, label: "Cache" },
+  cloud: { width: 150, height: 90, label: "Cloud" },
+  text: { width: 180, height: 60, label: "Text" },
+};
+
 type DiagramState = {
   nodes: DiagramNode[];
   edges: DiagramEdge[];
+  strokes: DiagramStroke[];
 
   // local actions
   addNode: (type: NodeType, x: number, y: number) => DiagramNode;
@@ -39,22 +63,30 @@ type DiagramState = {
   // remote-safe actions
   upsertNode: (node: DiagramNode) => void;
   addEdgeRecord: (edge: DiagramEdge) => void;
+
+  // stroke actions
+  addStrokeRecord: (stroke: DiagramStroke) => void;
+  deleteStroke: (id: string) => void;
 };
 
 export const useDiagramStore = create<DiagramState>((set, get) => ({
   nodes: [],
   edges: [],
+  strokes: [],
 
   addNode: (type, x, y) => {
     const id = crypto.randomUUID();
+    const tpl = NODE_TEMPLATES[type] ?? { width: 120, height: 80, label: type };
+
     const node: DiagramNode = {
       id,
       type,
       x,
       y,
-      width: 120,
-      height: 80,
+      width: tpl.width,
+      height: tpl.height,
     };
+
     set((state) => ({
       nodes: [...state.nodes, node],
     }));
@@ -100,4 +132,14 @@ export const useDiagramStore = create<DiagramState>((set, get) => ({
     set((s) => ({ edges: [...s.edges, edge] }));
   },
 
+  addStrokeRecord: (stroke) => {
+    const exists = get().strokes.some((s) => s.id === stroke.id);
+    if (exists) return;
+
+    set((st) => ({ strokes: [...st.strokes, stroke] }));
+  },
+
+  deleteStroke: (id) => {
+    set((st) => ({ strokes: st.strokes.filter((s) => s.id !== id) }));
+  },
 }));
