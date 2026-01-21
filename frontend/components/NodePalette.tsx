@@ -26,18 +26,35 @@ export function NodePalette({
   roomId: string;
   userId: string;
 }) {
-  const addNode = useDiagramStore((s) => s.addNode);
+  const buildNode = useDiagramStore((s) => s.buildNode);
+  const applyAction = useDiagramStore((s) => s.applyAction);
   const lastPointer = useToolStore((s) => s.lastPointer);
 
   const addAt = (type: NodeType) => {
     const x = lastPointer?.x ?? window.innerWidth / 2;
     const y = lastPointer?.y ?? window.innerHeight / 2;
 
-    const node = addNode(type, x - 60, y - 40);
+    // Build node (pure)
+    const node = buildNode(type, x - 60, y - 40);
 
+    // Wrap as action
+    const action = {
+      id: crypto.randomUUID(),
+      userId,
+      ts: Date.now(),
+      type: "ADD_NODE" as const,
+      payload: { node },
+    };
+
+    // Apply locally
+    console.log("📋 Applying ADD_NODE action locally");
+    applyAction(action);
+
+    // Broadcast
     const ws = wsRef.current;
     if (ws && ws.readyState === WebSocket.OPEN && roomId) {
-      ws.send(JSON.stringify({ type: "node:add", roomId, userId, node }));
+      console.log("📤 Broadcasting ADD_NODE action");
+      ws.send(JSON.stringify({ type: "diagram:action", roomId, action }));
     }
   };
 

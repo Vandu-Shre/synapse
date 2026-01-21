@@ -9,6 +9,7 @@ import { NodePalette } from "@/components/NodePalette";
 
 type WSMessage =
   | { type: "join-room"; roomId: string; userId: string }
+  | { type: "diagram:action"; roomId: string; action: any }
   | { type: "node:add"; roomId: string; userId: string; node: any }
   | { type: "node:move"; roomId: string; userId: string; nodeId: string; x: number; y: number }
   | { type: "edge:add"; roomId: string; userId: string; edge: any }
@@ -18,11 +19,6 @@ type WSMessage =
 
 export default function RoomClient({ roomId }: { roomId: string }) {
   const { setRoomId, userId, socketStatus, setSocketStatus } = useRoomStore();
-  const upsertNode = useDiagramStore((s) => s.upsertNode);
-  const moveNode = useDiagramStore((s) => s.moveNode);
-  const upsertEdgeRecord = useDiagramStore((s) => s.upsertEdgeRecord);
-  const upsertStrokeRecord = useDiagramStore((s) => s.upsertStrokeRecord);
-  const deleteStroke = useDiagramStore((s) => s.deleteStroke);
 
   const wsRef = useRef<WebSocket | null>(null);
   const connectingRef = useRef(false);
@@ -56,11 +52,12 @@ export default function RoomClient({ roomId }: { roomId: string }) {
         const msg = JSON.parse(evt.data) as WSMessage;
         console.log("📨 RECEIVED message type:", msg.type, msg);
 
+        // 1) room:state must HARD RESET local state
         if (msg.type === "room:state") {
           const strokes = (msg as any).strokes ?? [];
 
           console.log(
-            "🔄 Syncing room state:",
+            "🔄 Syncing room state (hard reset):",
             msg.nodes.length,
             "nodes,",
             msg.edges.length,
@@ -72,46 +69,31 @@ export default function RoomClient({ roomId }: { roomId: string }) {
           console.log(`   Edge IDs: ${msg.edges.map((e: any) => e.id).join(", ") || "none"}`);
           console.log(`   Stroke IDs: ${strokes.map((s: any) => s.id).join(", ") || "none"}`);
 
-          for (const node of msg.nodes) {
-            console.log(`   ↳ Upserting node ${node.id}`);
-            upsertNode(node);
-          }
-          for (const edge of msg.edges) {
-            console.log(`   ↳ Upserting edge ${edge.id}`);
-            upsertEdgeRecord(edge);
-          }
-          for (const stroke of strokes) {
-            console.log(`   ↳ Upserting stroke ${stroke.id}`);
-            upsertStrokeRecord(stroke);
-          }
+          useDiagramStore.getState().setRoomState(msg.nodes ?? [], msg.edges ?? [], strokes);
           setHasRoomState(true);
           return;
         }
 
-        if (msg.roomId && msg.roomId !== roomId) return;
+        // 2) ignore messages for other rooms
+        if ("roomId" in msg && msg.roomId !== roomId) return;
 
-        if (msg.type === "node:add") {
-          console.log(`   ↳ Upserting node ${msg.node.id}`);
-          upsertNode(msg.node);
+        // 3) new action pathway (single source of truth)
+        if (msg.type === "diagram:action") {
+          console.log(`🎨 Received diagram:action, applying:`, msg.action.type);
+          useDiagramStore.getState().applyAction(msg.action);
+          return;
         }
 
-        if (msg.type === "node:move") {
-          moveNode(msg.nodeId, msg.x, msg.y);
-        }
-
-        if (msg.type === "edge:add") {
-          console.log(`   ↳ Upserting edge ${msg.edge.id}`);
-          upsertEdgeRecord(msg.edge);
-        }
-
-        if (msg.type === "stroke:add") {
-          console.log(`   ↳ Upserting stroke ${msg.stroke.id}`);
-          upsertStrokeRecord(msg.stroke);
-        }
-
-        if (msg.type === "stroke:delete") {
-          console.log(`   ↳ Deleting stroke ${msg.strokeId}`);
-          deleteStroke(msg.strokeId);
+        // 4) TEMP: ignore legacy mutation messages to prevent ghost state
+        if (
+          msg.type === "node:add" ||
+          msg.type === "node:move" ||
+          msg.type === "edge:add" ||
+          msg.type === "stroke:add" ||
+          msg.type === "stroke:delete"
+        ) {
+          console.warn("⚠️ Ignoring legacy WS message:", msg.type);
+          return;
         }
       } catch (e) {
         console.error("Bad WS message", evt.data);
@@ -140,7 +122,47 @@ export default function RoomClient({ roomId }: { roomId: string }) {
       wsRef.current = null;
       connectingRef.current = false;
     };
-  }, [roomId, userId, setSocketStatus, upsertNode, moveNode, upsertEdgeRecord, upsertStrokeRecord, deleteStroke]);
+  }, [roomId, userId, setSocketStatus]);
+
+  // Keybind: Delete selected node or edge
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      console.log("⌨️ Key pressed:", e.key);
+
+      if (e.key !== "Backspace" && e.key !== "Delete") return;
+
+      const makeDeleteNode = useDiagramStore.getState().deleteSelectedNodeAsAction;
+      const makeDeleteEdge = useDiagramStore.getState().deleteSelectedEdgeAsAction;
+      const apply = useDiagramStore.getState().applyAction;
+
+      console.log("🧨 Checking for selection to delete");
+      const action = makeDeleteNode(userId) ?? makeDeleteEdge(userId);
+
+      if (!action) {
+        console.warn("❌ No node or edge selected to delete");
+        return;
+      }
+
+      console.log("🔥", action.type, "action created:", action);
+      e.preventDefault();
+
+      // apply locally immediately (optimistic)
+      console.log("💬 Applying action locally");
+      apply(action);
+
+      // broadcast
+      const ws = wsRef.current;
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        console.log("📤 Sending diagram:action to server");
+        ws.send(JSON.stringify({ type: "diagram:action", roomId, action }));
+      } else {
+        console.warn("⚠️ WebSocket not ready:", { readyState: ws?.readyState });
+      }
+    };
+
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [roomId, userId]);
 
   return (
     <div style={{ position: "relative", background: "var(--canvas)", width: "100vw", height: "100vh" }}>

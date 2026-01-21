@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import { DiagramAction } from "./diagramActions";
 
 export type NodeType = "react" | "db" | "api" | "service" | "queue" | "cache" | "cloud" | "text";
 
@@ -49,9 +50,18 @@ type DiagramState = {
   nodes: DiagramNode[];
   edges: DiagramEdge[];
   strokes: DiagramStroke[];
+  selectedNodeId: string | null;
+  setSelectedNodeId: (id: string | null) => void;
+  selectedEdgeId: string | null;
+  setSelectedEdgeId: (id: string | null) => void;
+  setRoomState: (nodes: DiagramNode[], edges: DiagramEdge[], strokes: DiagramStroke[]) => void;
+  deleteSelectedNodeAsAction: (userId: string) => DiagramAction | null;
+  deleteSelectedEdgeAsAction: (userId: string) => DiagramAction | null;
+  applyAction: (action: DiagramAction) => void;
+  applyInverse: (action: DiagramAction) => void;
 
   // local actions
-  addNode: (type: NodeType, x: number, y: number) => DiagramNode;
+  buildNode: (type: NodeType, x: number, y: number) => DiagramNode;
   moveNode: (id: string, x: number, y: number) => void;
   getNode: (id: string) => DiagramNode | undefined;
   addEdge: (
@@ -76,12 +86,200 @@ export const useDiagramStore = create<DiagramState>((set, get) => ({
   nodes: [],
   edges: [],
   strokes: [],
+  selectedNodeId: null,
+  setSelectedNodeId: (id) => set({ selectedNodeId: id }),
+  selectedEdgeId: null,
+  setSelectedEdgeId: (id) => set({ selectedEdgeId: id }),
 
-  addNode: (type, x, y) => {
+  setRoomState: (nodes, edges, strokes) =>
+    set({ nodes, edges, strokes, selectedNodeId: null, selectedEdgeId: null }),
+
+  deleteSelectedNodeAsAction: (userId) => {
+    const nodeId = get().selectedNodeId;
+    if (!nodeId) {
+      console.warn("❌ No selectedNodeId in store");
+      return null;
+    }
+
+    const node = get().nodes.find((n) => n.id === nodeId);
+    if (!node) {
+      console.warn("❌ Selected node not found in nodes array");
+      return null;
+    }
+
+    const edges = get().edges.filter(
+      (e) => e.fromNodeId === nodeId || e.toNodeId === nodeId
+    );
+
+    console.log(`📋 Building DELETE_NODE action for ${nodeId}, removing ${edges.length} edges`);
+
+    const action: DiagramAction = {
+      id: crypto.randomUUID(),
+      userId,
+      ts: Date.now(),
+      type: "DELETE_NODE",
+      payload: { node, edges },
+    };
+
+    return action;
+  },
+
+  deleteSelectedEdgeAsAction: (userId) => {
+    const edgeId = get().selectedEdgeId;
+    if (!edgeId) {
+      console.warn("❌ No selectedEdgeId in store");
+      return null;
+    }
+
+    const edge = get().edges.find((e) => e.id === edgeId);
+    if (!edge) {
+      console.warn("❌ Selected edge not found in edges array");
+      return null;
+    }
+
+    console.log(`📋 Building DELETE_EDGE action for ${edgeId}`);
+
+    const action: DiagramAction = {
+      id: crypto.randomUUID(),
+      userId,
+      ts: Date.now(),
+      type: "DELETE_EDGE",
+      payload: { edge },
+    };
+
+    return action;
+  },
+
+  applyAction: (action) => {
+    console.log("🎬 applyAction called with type:", action.type);
+    
+    set((state) => {
+      switch (action.type) {
+        case "ADD_NODE": {
+          console.log("➕ APPLY ADD_NODE:", action.payload.node.id);
+          const node = action.payload.node;
+          const idx = state.nodes.findIndex((n) => n.id === node.id);
+          if (idx === -1) return { nodes: [...state.nodes, node] };
+          const next = state.nodes.slice();
+          next[idx] = node;
+          return { nodes: next };
+        }
+
+        case "MOVE_NODE":
+          console.log("🔄 APPLY MOVE_NODE:", action.payload.nodeId);
+          return {
+            nodes: state.nodes.map((n) =>
+              n.id === action.payload.nodeId
+                ? { ...n, x: action.payload.to.x, y: action.payload.to.y }
+                : n
+            ),
+          };
+
+        case "DELETE_NODE":
+          console.log("💣 APPLY DELETE_NODE:", action.payload.node.id, "removing", action.payload.edges.length, "edges");
+          return {
+            nodes: state.nodes.filter((n) => n.id !== action.payload.node.id),
+            edges: state.edges.filter(
+              (e) =>
+                e.fromNodeId !== action.payload.node.id &&
+                e.toNodeId !== action.payload.node.id
+            ),
+            selectedNodeId:
+              state.selectedNodeId === action.payload.node.id
+                ? null
+                : state.selectedNodeId,
+          };
+
+        case "ADD_EDGE": {
+          console.log("🔗 APPLY ADD_EDGE:", action.payload.edge.id);
+          const edge = action.payload.edge;
+          const idx = state.edges.findIndex((e) => e.id === edge.id);
+          if (idx === -1) return { edges: [...state.edges, edge] };
+          const next = state.edges.slice();
+          next[idx] = edge;
+          return { edges: next };
+        }
+
+        case "DELETE_EDGE":
+          console.log("🚫 APPLY DELETE_EDGE:", action.payload.edge.id);
+          return {
+            edges: state.edges.filter((e) => e.id !== action.payload.edge.id),
+            selectedEdgeId:
+              state.selectedEdgeId === action.payload.edge.id
+                ? null
+                : state.selectedEdgeId,
+          };
+
+        case "ADD_STROKE": {
+          console.log("🖍️ APPLY ADD_STROKE:", action.payload.stroke.id);
+          const stroke = action.payload.stroke;
+          const idx = state.strokes.findIndex((s) => s.id === stroke.id);
+          if (idx === -1) return { strokes: [...state.strokes, stroke] };
+          const next = state.strokes.slice();
+          next[idx] = stroke;
+          return { strokes: next };
+        }
+
+        case "DELETE_STROKE":
+          console.log("🧹 APPLY DELETE_STROKE:", action.payload.stroke.id);
+          return {
+            strokes: state.strokes.filter(
+              (s) => s.id !== action.payload.stroke.id
+            ),
+          };
+
+        default:
+          console.warn("⚠️ Unknown action type:", (action as any).type);
+          return state;
+      }
+    });
+  },
+
+  applyInverse: (action) => {
+    set((state) => {
+      switch (action.type) {
+        case "ADD_NODE":
+          return {
+            nodes: state.nodes.filter((n) => n.id !== action.payload.node.id),
+          };
+        case "MOVE_NODE":
+          return {
+            nodes: state.nodes.map((n) =>
+              n.id === action.payload.nodeId
+                ? { ...n, x: action.payload.from.x, y: action.payload.from.y }
+                : n
+            ),
+          };
+        case "DELETE_NODE":
+          return {
+            nodes: [...state.nodes, action.payload.node],
+            edges: [...state.edges, ...action.payload.edges],
+          };
+        case "ADD_EDGE":
+          return {
+            edges: state.edges.filter((e) => e.id !== action.payload.edge.id),
+          };
+        case "DELETE_EDGE":
+          return { edges: [...state.edges, action.payload.edge] };
+        case "ADD_STROKE":
+          return {
+            strokes: state.strokes.filter(
+              (s) => s.id !== action.payload.stroke.id
+            ),
+          };
+        case "DELETE_STROKE":
+          return { strokes: [...state.strokes, action.payload.stroke] };
+        default:
+          return state;
+      }
+    });
+  },
+
+  buildNode: (type, x, y) => {
     const id = crypto.randomUUID();
     const tpl = NODE_TEMPLATES[type] ?? { width: 120, height: 80, label: type };
 
-    const node: DiagramNode = {
+    return {
       id,
       type,
       label: tpl.label,
@@ -90,11 +288,6 @@ export const useDiagramStore = create<DiagramState>((set, get) => ({
       width: tpl.width,
       height: tpl.height,
     };
-
-    set((state) => ({
-      nodes: [...state.nodes, node],
-    }));
-    return node;
   },
 
   moveNode: (id, x, y) => {

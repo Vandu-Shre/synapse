@@ -2,6 +2,7 @@
 
 import { RefObject, useEffect, useRef, useState } from "react";
 import { useDiagramStore } from "@/store/useDiagramStore";
+import type { DiagramEdge } from "@/store/useDiagramStore";
 import { useToolStore } from "@/store/useToolStore";
 import { NODE_THEME } from "@/ui/nodeTheme";
 
@@ -108,6 +109,41 @@ const roundRectPath = (
   ctx.closePath();
 };
 
+const hitTestEdge = (
+  x: number,
+  y: number,
+  edges: DiagramEdge[],
+  nodes: any[],
+  threshold = 10
+): DiagramEdge | null => {
+  for (let i = edges.length - 1; i >= 0; i--) {
+    const e = edges[i];
+    const from = nodes.find((n) => n.id === e.fromNodeId);
+    const to = nodes.find((n) => n.id === e.toNodeId);
+    if (!from || !to) continue;
+
+    const p1 = getPortPosition(from, e.fromPort);
+    const p2 = getPortPosition(to, e.toPort);
+
+    // Line-to-point distance calculation
+    const dx = p2.x - p1.x;
+    const dy = p2.y - p1.y;
+    const len = Math.sqrt(dx * dx + dy * dy);
+    if (len === 0) continue;
+
+    const t = Math.max(0, Math.min(1, ((x - p1.x) * dx + (y - p1.y) * dy) / (len * len)));
+    const closestX = p1.x + t * dx;
+    const closestY = p1.y + t * dy;
+
+    const distX = x - closestX;
+    const distY = y - closestY;
+    const dist = Math.sqrt(distX * distX + distY * distY);
+
+    if (dist <= threshold) return e;
+  }
+  return null;
+};
+
 export default function Canvas({
   wsRef,
   roomId,
@@ -125,15 +161,17 @@ export default function Canvas({
   const nodesRef = useRef<HTMLCanvasElement>(null);
   const strokesRef = useRef<HTMLCanvasElement>(null);
   const [edgeDraft, setEdgeDraft] = useState<EdgeDraft>(null);
+  const dragStartRef = useRef<{ nodeId: string; fromX: number; fromY: number } | null>(null);
 
   const nodes = useDiagramStore((s) => s.nodes);
-  const addNode = useDiagramStore((s) => s.addNode);
-  const moveNode = useDiagramStore((s) => s.moveNode);
-  const addEdge = useDiagramStore((s) => s.addEdge);
+  const buildNode = useDiagramStore((s) => s.buildNode);
+  const applyAction = useDiagramStore((s) => s.applyAction);
   const edges = useDiagramStore((s) => s.edges);
   const strokes = useDiagramStore((s) => s.strokes);
-  const addStrokeRecord = useDiagramStore((s) => s.addStrokeRecord);
-  const deleteStroke = useDiagramStore((s) => s.deleteStroke);
+  const selectedNodeId = useDiagramStore((s) => s.selectedNodeId);
+  const setSelectedNodeId = useDiagramStore((s) => s.setSelectedNodeId);
+  const selectedEdgeId = useDiagramStore((s) => s.selectedEdgeId);
+  const setSelectedEdgeId = useDiagramStore((s) => s.setSelectedEdgeId);
 
   const tool = useToolStore((s) => s.tool);
   const setLastPointer = useToolStore((s) => s.setLastPointer);
@@ -153,8 +191,10 @@ export default function Canvas({
   const lastMoveTimeRef = useRef(0);
   const pendingMoveRef = useRef<null | {
     nodeId: string;
-    x: number;
-    y: number;
+    fromX: number;
+    fromY: number;
+    toX: number;
+    toY: number;
   }>(null);
 
   // Setup all canvases size
@@ -169,15 +209,18 @@ export default function Canvas({
     }
   }, []);
 
-  // Seed nodes once (and broadcast node:add so other clients get same IDs)
+  // Seed nodes once via diagram:action (only for brand-new room)
   useEffect(() => {
     if (!roomId || !userId) return;
     if (!wsReady || !hasRoomState) return;
     if (nodes.length !== 0) return;
 
+    const seedKey = `synapse:seeded:${roomId}`;
+    if (localStorage.getItem(seedKey) === "1") return;
+
     console.log("🌱 Seeding initial nodes...");
-    const n1 = addNode("react", 200, 200);
-    const n2 = addNode("db", 500, 320);
+    const n1 = buildNode("react", 200, 200);
+    const n2 = buildNode("db", 500, 320);
 
     console.log("✉️ Node 1:", n1.id);
     console.log("✉️ Node 2:", n2.id);
@@ -185,9 +228,21 @@ export default function Canvas({
     const ws = wsRef.current;
 
     if (ws && ws.readyState === WebSocket.OPEN && roomId) {
-      console.log("📤 Sending node:add for both nodes...");
-      ws.send(JSON.stringify({ type: "node:add", roomId, userId, node: n1 }));
-      ws.send(JSON.stringify({ type: "node:add", roomId, userId, node: n2 }));
+      console.log("📤 Sending ADD_NODE actions for both nodes...");
+
+      for (const node of [n1, n2]) {
+        const action = {
+          id: crypto.randomUUID(),
+          userId,
+          ts: Date.now(),
+          type: "ADD_NODE" as const,
+          payload: { node },
+        };
+        applyAction(action);
+        ws.send(JSON.stringify({ type: "diagram:action", roomId, action }));
+      }
+
+      localStorage.setItem(seedKey, "1");
       console.log("✅ Sent both nodes");
     } else {
       console.warn("⚠️ WebSocket not ready:", {
@@ -196,7 +251,12 @@ export default function Canvas({
         roomId,
       });
     }
-  }, [wsReady, hasRoomState, roomId, userId, nodes.length, addNode, wsRef]);
+  }, [wsReady, hasRoomState, roomId, userId, nodes.length, buildNode, applyAction, wsRef]);
+
+  // Debug: Log selectedNodeId changes
+  useEffect(() => {
+    console.log("🎯 selectedNodeId changed:", selectedNodeId);
+  }, [selectedNodeId]);
 
   // Helper: hit test nodes (top-most wins)
   const hitTestNode = (x: number, y: number) => {
@@ -287,17 +347,30 @@ export default function Canvas({
       const p1 = getPortPosition(from, e.fromPort);
       const p2 = getPortPosition(to, e.toPort);
 
+      const isSelected = e.id === selectedEdgeId;
+
       ctx.beginPath();
       ctx.moveTo(p1.x, p1.y);
       ctx.lineTo(p2.x, p2.y);
-      ctx.lineWidth = 2;
-      ctx.strokeStyle = "rgba(15,23,42,0.38)";
+      ctx.lineWidth = isSelected ? 3.5 : 2;
+      ctx.strokeStyle = isSelected ? "rgba(109, 94, 252, 0.80)" : "rgba(15,23,42,0.38)";
       ctx.stroke();
+
+      // Draw selection indicator (small circle at midpoint)
+      if (isSelected) {
+        const midX = (p1.x + p2.x) / 2;
+        const midY = (p1.y + p2.y) / 2;
+        ctx.beginPath();
+        ctx.arc(midX, midY, 6, 0, Math.PI * 2);
+        ctx.fillStyle = "rgba(109, 94, 252, 0.80)";
+        ctx.fill();
+      }
     }
 
     // Draw nodes with elegant glass styling
     for (const n of nodes) {
       const t = NODE_THEME[n.type];
+      const isSelected = n.id === selectedNodeId;
 
       ctx.save();
 
@@ -314,8 +387,8 @@ export default function Canvas({
 
       // stop shadow for strokes
       ctx.shadowColor = "transparent";
-      ctx.lineWidth = 1.5;
-      ctx.strokeStyle = "rgba(255,255,255,0.65)";
+      ctx.lineWidth = isSelected ? 2.5 : 1.5;
+      ctx.strokeStyle = isSelected ? t.stroke : "rgba(255,255,255,0.65)";
       ctx.stroke();
 
       // tint overlay (type color)
@@ -323,7 +396,7 @@ export default function Canvas({
       ctx.fill();
 
       // border tint
-      ctx.lineWidth = 1.6;
+      ctx.lineWidth = isSelected ? 2.5 : 1.6;
       ctx.strokeStyle = t.stroke;
       ctx.stroke();
 
@@ -366,7 +439,7 @@ export default function Canvas({
         ctx.setLineDash([]);
       }
     }
-  }, [nodes, edges, edgeDraft, snapPreview]);
+  }, [nodes, edges, edgeDraft, snapPreview, selectedNodeId, selectedEdgeId]);
 
   // Ink helpers
   const inkStart = (x: number, y: number) => {
@@ -402,8 +475,6 @@ export default function Canvas({
     // Pen/Highlighter: start stroke
     if (tool === "pen" || tool === "highlighter") {
       const id = crypto.randomUUID();
-      const width = tool === "pen" ? 3 : 14;
-      const opacity = tool === "pen" ? 1 : 0.35;
 
       setActiveStroke({
         id,
@@ -418,35 +489,46 @@ export default function Canvas({
     if (tool === "eraser") {
       const hitStroke = hitTestStroke(x, y);
       if (hitStroke) {
-        deleteStroke(hitStroke.id);
+        const action = {
+          id: crypto.randomUUID(),
+          userId,
+          ts: Date.now(),
+          type: "DELETE_STROKE" as const,
+          payload: { stroke: hitStroke },
+        };
+
+        applyAction(action);
 
         const ws = wsRef.current;
         if (ws && ws.readyState === WebSocket.OPEN && roomId) {
-          ws.send(
-            JSON.stringify({
-              type: "stroke:delete",
-              roomId,
-              userId,
-              strokeId: hitStroke.id,
-            })
-          );
+          ws.send(JSON.stringify({ type: "diagram:action", roomId, action }));
         }
       }
       return;
     }
 
+    // NEW: Check for edge click in select mode (before node check)
+    if (tool === "select") {
+      const hitEdge = hitTestEdge(x, y, edges, nodes);
+      if (hitEdge) {
+        console.log("🔗 EDGE SELECTED:", hitEdge.id);
+        setSelectedEdgeId(hitEdge.id);
+        setSelectedNodeId(null);
+        return;
+      }
+    }
+
     const hit = hitTestNode(x, y);
     const connectIntent = tool === "connect" || e.shiftKey;
 
-    if (hit && connectIntent) {
-      // Start edge draft (connect mode)
-      setDrag({ mode: "idle" });
-      setEdgeDraft({ fromNodeId: hit.id, startX: x, startY: y, toX: x, toY: y });
-      return;
-    }
-
+    // 🎯 SELECT TOOL: Check for selection first
     if (hit && tool === "select") {
-      // Start dragging node
+      console.log("🟦 NODE SELECTED:", hit.id);
+      setSelectedNodeId(hit.id);
+      setSelectedEdgeId(null);
+      
+      dragStartRef.current = { nodeId: hit.id, fromX: hit.x, fromY: hit.y };
+
       setDrag({
         mode: "node",
         nodeId: hit.id,
@@ -454,6 +536,19 @@ export default function Canvas({
         offsetY: y - hit.y,
       });
       return;
+    }
+
+    if (hit && connectIntent) {
+      setDrag({ mode: "idle" });
+      setEdgeDraft({ fromNodeId: hit.id, startX: x, startY: y, toX: x, toY: y });
+      return;
+    }
+
+    // Clear selection on canvas click
+    if (tool === "select") {
+      console.log("🟪 CANVAS CLICKED, clearing selection");
+      setSelectedNodeId(null);
+      setSelectedEdgeId(null);
     }
 
     // Otherwise, start drawing ink
@@ -496,30 +591,36 @@ export default function Canvas({
       const newX = x - drag.offsetX;
       const newY = y - drag.offsetY;
 
-      // local move (always)
-      moveNode(drag.nodeId, newX, newY);
+      // Build MOVE_NODE action and apply locally
+      const from = dragStartRef.current;
+      if (!from || from.nodeId !== drag.nodeId) return;
+
+      const action = {
+        id: crypto.randomUUID(),
+        userId,
+        ts: Date.now(),
+        type: "MOVE_NODE" as const,
+        payload: {
+          nodeId: drag.nodeId,
+          from: { x: from.fromX, y: from.fromY },
+          to: { x: newX, y: newY },
+        },
+      };
+
+      applyAction(action);
 
       // throttled broadcast (at most every ~30ms)
       const now = Date.now();
       if (now - lastMoveTimeRef.current >= 30) {
         const ws = wsRef.current;
         if (ws && ws.readyState === WebSocket.OPEN && roomId) {
-          ws.send(
-            JSON.stringify({
-              type: "node:move",
-              roomId,
-              userId,
-              nodeId: drag.nodeId,
-              x: newX,
-              y: newY,
-            })
-          );
+          ws.send(JSON.stringify({ type: "diagram:action", roomId, action }));
         }
         lastMoveTimeRef.current = now;
         pendingMoveRef.current = null;
       } else {
         // store pending move to send on mouseUp
-        pendingMoveRef.current = { nodeId: drag.nodeId, x: newX, y: newY };
+        pendingMoveRef.current = { nodeId: drag.nodeId, fromX: from.fromX, fromY: from.fromY, toX: newX, toY: newY };
       }
       return;
     }
@@ -530,21 +631,26 @@ export default function Canvas({
   };
 
   const onUp = () => {
-    // Send any pending node:move before committing stroke
+    // Send any pending MOVE_NODE action
     if (drag.mode === "node" && pendingMoveRef.current) {
       const p = pendingMoveRef.current;
+      const action = {
+        id: crypto.randomUUID(),
+        userId,
+        ts: Date.now(),
+        type: "MOVE_NODE" as const,
+        payload: {
+          nodeId: p.nodeId,
+          from: { x: p.fromX, y: p.fromY },
+          to: { x: p.toX, y: p.toY },
+        },
+      };
+
+      applyAction(action);
+
       const ws = wsRef.current;
       if (ws && ws.readyState === WebSocket.OPEN && roomId) {
-        ws.send(
-          JSON.stringify({
-            type: "node:move",
-            roomId,
-            userId,
-            nodeId: p.nodeId,
-            x: p.x,
-            y: p.y,
-          })
-        );
+        ws.send(JSON.stringify({ type: "diagram:action", roomId, action }));
       }
       pendingMoveRef.current = null;
     }
@@ -559,18 +665,19 @@ export default function Canvas({
         opacity: activeStroke.tool === "pen" ? 1 : 0.35,
       };
 
-      addStrokeRecord(stroke);
+      const action = {
+        id: crypto.randomUUID(),
+        userId,
+        ts: Date.now(),
+        type: "ADD_STROKE" as const,
+        payload: { stroke },
+      };
+
+      applyAction(action);
 
       const ws = wsRef.current;
       if (ws && ws.readyState === WebSocket.OPEN && roomId) {
-        ws.send(
-          JSON.stringify({
-            type: "stroke:add",
-            roomId,
-            userId,
-            stroke,
-          })
-        );
+        ws.send(JSON.stringify({ type: "diagram:action", roomId, action }));
       }
 
       setActiveStroke(null);
@@ -599,25 +706,30 @@ export default function Canvas({
         return;
       }
 
-      // ✅ Correct: choose fromPort near start pointer, toPort near end pointer
       const fromPort = getNearestPort(fromNode, edgeDraft.startX, edgeDraft.startY);
       const toPort = getNearestPort(hit, edgeDraft.toX, edgeDraft.toY);
 
-      // Create local edge
-      const createdEdge = addEdge(edgeDraft.fromNodeId, hit.id, fromPort, toPort);
+      const edge: DiagramEdge = {
+        id: crypto.randomUUID(),
+        fromNodeId: edgeDraft.fromNodeId,
+        fromPort,
+        toNodeId: hit.id,
+        toPort,
+      };
 
-      // Broadcast edge:add with full edge payload (including id)
+      const action = {
+        id: crypto.randomUUID(),
+        userId,
+        ts: Date.now(),
+        type: "ADD_EDGE" as const,
+        payload: { edge },
+      };
+
+      applyAction(action);
+
       const ws = wsRef.current;
-
       if (ws && ws.readyState === WebSocket.OPEN && roomId) {
-        ws.send(
-          JSON.stringify({
-            type: "edge:add",
-            roomId,
-            userId,
-            edge: createdEdge,
-          })
-        );
+        ws.send(JSON.stringify({ type: "diagram:action", roomId, action }));
       }
 
       setEdgeDraft(null);
@@ -626,6 +738,7 @@ export default function Canvas({
       return;
     }
 
+    dragStartRef.current = null;
     setDrag({ mode: "idle" });
   };
 
