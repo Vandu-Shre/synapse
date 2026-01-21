@@ -1,4 +1,4 @@
-import type { NodeType } from "@/store/useDiagramStore";
+import type { NodeType } from "@/types";
 
 export const NODE_THEME: Record<
   NodeType,

@@ -1,17 +1,14 @@
 import { create } from "zustand";
-import type { DiagramAction } from "@/types/actions";
 import type {
+  DiagramAction,
   DiagramNode,
   DiagramEdge,
   DiagramStroke,
   NodeType,
   Port,
-} from "@/types/diagram";
+} from "@/types";
 
-// Re-export types for backwards compatibility
-export type { NodeType, DiagramNode, DiagramEdge, DiagramStroke, Port };
-export type { StrokeTool, StrokePoint } from "@/types/diagram";
-
+// NODE_TEMPLATES 
 const NODE_TEMPLATES: Record<NodeType, { width: number; height: number; label: string }> = {
   react: { width: 120, height: 80, label: "React" },
   db: { width: 120, height: 80, label: "DB" },

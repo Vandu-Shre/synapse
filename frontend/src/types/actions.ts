@@ -1,14 +1,4 @@
-import { DiagramNode, DiagramEdge, DiagramStroke } from "./diagram";
-
-export type DiagramAction =
-  | AddNodeAction
-  | MoveNodeAction
-  | DeleteNodeAction
-  | RestoreNodeAction
-  | AddEdgeAction
-  | DeleteEdgeAction
-  | AddStrokeAction
-  | DeleteStrokeAction;
+import type { DiagramNode, DiagramEdge, DiagramStroke } from "./diagram";
 
 type BaseAction = {
   id: string;
@@ -32,18 +22,12 @@ export type MoveNodeAction = BaseAction & {
 
 export type DeleteNodeAction = BaseAction & {
   type: "DELETE_NODE";
-  payload: {
-    node: DiagramNode;
-    edges: DiagramEdge[];
-  };
+  payload: { node: DiagramNode; edges: DiagramEdge[] };
 };
 
 export type RestoreNodeAction = BaseAction & {
   type: "RESTORE_NODE";
-  payload: {
-    node: DiagramNode;
-    edges: DiagramEdge[];
-  };
+  payload: { node: DiagramNode; edges: DiagramEdge[] };
 };
 
 export type AddEdgeAction = BaseAction & {
@@ -65,3 +49,13 @@ export type DeleteStrokeAction = BaseAction & {
   type: "DELETE_STROKE";
   payload: { stroke: DiagramStroke };
 };
+
+export type DiagramAction =
+  | AddNodeAction
+  | MoveNodeAction
+  | DeleteNodeAction
+  | RestoreNodeAction
+  | AddEdgeAction
+  | DeleteEdgeAction
+  | AddStrokeAction
+  | DeleteStrokeAction;

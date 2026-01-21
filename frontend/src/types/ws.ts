@@ -1,4 +1,4 @@
-import type { DiagramAction } from "@/store/diagramActions";
+import type { DiagramAction } from "./actions";
 
 export type WSMessage =
   | { type: "join-room"; roomId: string; userId: string }

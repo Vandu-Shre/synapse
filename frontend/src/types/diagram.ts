@@ -1,4 +1,15 @@
-export type NodeType = "react" | "db" | "api" | "service" | "queue" | "cache" | "cloud" | "text";
+export type NodeType =
+  | "react"
+  | "db"
+  | "api"
+  | "service"
+  | "queue"
+  | "cache"
+  | "cloud"
+  | "text";
+
+export type Port = "top" | "right" | "bottom" | "left";
+export type StrokeTool = "pen" | "highlighter";
 
 export type DiagramNode = {
   id: string;
@@ -10,8 +21,6 @@ export type DiagramNode = {
   height: number;
 };
 
-export type Port = "top" | "right" | "bottom" | "left";
-
 export type DiagramEdge = {
   id: string;
   fromNodeId: string;
@@ -19,8 +28,6 @@ export type DiagramEdge = {
   toNodeId: string;
   toPort: Port;
 };
-
-export type StrokeTool = "pen" | "highlighter";
 
 export type StrokePoint = { x: number; y: number };
 

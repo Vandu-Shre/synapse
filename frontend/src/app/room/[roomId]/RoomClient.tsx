@@ -180,7 +180,7 @@ export default function RoomClient({ roomId }: { roomId: string }) {
   }, [roomId, userId]);
 
   return (
-    <div style={{ position: "relative", background: "var(--canvas)", width: "100vw", height: "100vh" }}>
+    <div className="room-container">
       <Toolbar />
       <NodePalette wsRef={wsRef} roomId={roomId} userId={userId} />
       <Canvas wsRef={wsRef} roomId={roomId} userId={userId} wsReady={wsReady} hasRoomState={hasRoomState} />
