@@ -6,16 +6,19 @@ import { useDiagramStore } from "@/store/useDiagramStore";
 import Canvas from "./Canvas";
 import { Toolbar } from "@/components/Toolbar";
 import { NodePalette } from "@/components/NodePalette";
+import { sendAction, sendUndo, sendRedo } from "@/lib/ws/send";
 
 type WSMessage =
   | { type: "join-room"; roomId: string; userId: string }
   | { type: "diagram:action"; roomId: string; action: any }
+  | { type: "diagram:undo"; roomId: string; userId: string }
+  | { type: "diagram:redo"; roomId: string; userId: string }
+  | { type: "room:state"; nodes: any[]; edges: any[]; strokes: any[] }
   | { type: "node:add"; roomId: string; userId: string; node: any }
   | { type: "node:move"; roomId: string; userId: string; nodeId: string; x: number; y: number }
   | { type: "edge:add"; roomId: string; userId: string; edge: any }
   | { type: "stroke:add"; roomId: string; userId: string; stroke: any }
-  | { type: "stroke:delete"; roomId: string; userId: string; strokeId: string }
-  | { type: "room:state"; nodes: any[]; edges: any[]; strokes: any[] };
+  | { type: "stroke:delete"; roomId: string; userId: string; strokeId: string };
 
 export default function RoomClient({ roomId }: { roomId: string }) {
   const { setRoomId, userId, socketStatus, setSocketStatus } = useRoomStore();
@@ -127,36 +130,48 @@ export default function RoomClient({ roomId }: { roomId: string }) {
   // Keybind: Delete selected node or edge
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
-      console.log("⌨️ Key pressed:", e.key);
-
       if (e.key !== "Backspace" && e.key !== "Delete") return;
 
       const makeDeleteNode = useDiagramStore.getState().deleteSelectedNodeAsAction;
       const makeDeleteEdge = useDiagramStore.getState().deleteSelectedEdgeAsAction;
       const apply = useDiagramStore.getState().applyAction;
 
-      console.log("🧨 Checking for selection to delete");
       const action = makeDeleteNode(userId) ?? makeDeleteEdge(userId);
 
-      if (!action) {
-        console.warn("❌ No node or edge selected to delete");
+      if (!action) return;
+
+      e.preventDefault();
+      apply(action);
+      sendAction(wsRef, roomId, action);
+    };
+
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [roomId, userId]);
+
+  // Keybind: Undo / Redo
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      const isMac = navigator.platform.toLowerCase().includes("mac");
+      const mod = isMac ? e.metaKey : e.ctrlKey;
+
+      if (!mod) return;
+
+      // Undo: Ctrl/Cmd + Z
+      if (e.key.toLowerCase() === "z" && !e.shiftKey) {
+        e.preventDefault();
+        sendUndo(wsRef, roomId, userId);
         return;
       }
 
-      console.log("🔥", action.type, "action created:", action);
-      e.preventDefault();
-
-      // apply locally immediately (optimistic)
-      console.log("💬 Applying action locally");
-      apply(action);
-
-      // broadcast
-      const ws = wsRef.current;
-      if (ws && ws.readyState === WebSocket.OPEN) {
-        console.log("📤 Sending diagram:action to server");
-        ws.send(JSON.stringify({ type: "diagram:action", roomId, action }));
-      } else {
-        console.warn("⚠️ WebSocket not ready:", { readyState: ws?.readyState });
+      // Redo: Ctrl/Cmd + Shift + Z OR Ctrl/Cmd + Y
+      if (
+        (e.key.toLowerCase() === "z" && e.shiftKey) ||
+        e.key.toLowerCase() === "y"
+      ) {
+        e.preventDefault();
+        sendRedo(wsRef, roomId, userId);
+        return;
       }
     };
 

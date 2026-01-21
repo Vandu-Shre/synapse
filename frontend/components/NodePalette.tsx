@@ -1,10 +1,11 @@
 "use client";
 
 import React from "react";
-import { useDiagramStore, NodeType } from "@/store/useDiagramStore";
+import { useDiagramStore } from "@/store/useDiagramStore";
 import { useToolStore } from "@/store/useToolStore";
 import { panelStyle } from "@/ui/panelStyle";
-import { ui } from "@/ui/tokens";
+import type { NodeType } from "@/types/diagram";
+import { sendAction } from "@/lib/ws/send";
 
 const palette: Array<{ type: NodeType; label: string }> = [
   { type: "react", label: "⚛️ React" },
@@ -16,6 +17,11 @@ const palette: Array<{ type: NodeType; label: string }> = [
   { type: "cloud", label: "☁️ Cloud" },
   { type: "text", label: "📝 Text" },
 ];
+
+const PALETTE_W = 190;
+const PALETTE_PAD = 16;
+const SAFE_LEFT = PALETTE_PAD + PALETTE_W + 16; // palette width + padding + margin
+const SAFE_TOP = 16 + 60; // top padding + toolbar height
 
 export function NodePalette({
   wsRef,
@@ -31,8 +37,12 @@ export function NodePalette({
   const lastPointer = useToolStore((s) => s.lastPointer);
 
   const addAt = (type: NodeType) => {
-    const x = lastPointer?.x ?? window.innerWidth / 2;
-    const y = lastPointer?.y ?? window.innerHeight / 2;
+    const rawX = lastPointer?.x ?? window.innerWidth / 2;
+    const rawY = lastPointer?.y ?? window.innerHeight / 2;
+
+    // Clamp to safe workspace (away from palette and toolbar)
+    const x = Math.max(rawX, SAFE_LEFT);
+    const y = Math.max(rawY, SAFE_TOP);
 
     // Build node (pure)
     const node = buildNode(type, x - 60, y - 40);
@@ -51,11 +61,8 @@ export function NodePalette({
     applyAction(action);
 
     // Broadcast
-    const ws = wsRef.current;
-    if (ws && ws.readyState === WebSocket.OPEN && roomId) {
-      console.log("📤 Broadcasting ADD_NODE action");
-      ws.send(JSON.stringify({ type: "diagram:action", roomId, action }));
-    }
+    console.log("📤 Broadcasting ADD_NODE action");
+    sendAction(wsRef, roomId, action);
   };
 
   return (

@@ -1,39 +1,16 @@
 import { create } from "zustand";
-import { DiagramAction } from "./diagramActions";
+import type { DiagramAction } from "@/types/actions";
+import type {
+  DiagramNode,
+  DiagramEdge,
+  DiagramStroke,
+  NodeType,
+  Port,
+} from "@/types/diagram";
 
-export type NodeType = "react" | "db" | "api" | "service" | "queue" | "cache" | "cloud" | "text";
-
-export type DiagramNode = {
-  id: string;
-  type: NodeType;
-  label: string;
-  x: number;
-  y: number;
-  width: number;
-  height: number;
-};
-
-export type Port = "top" | "right" | "bottom" | "left";
-
-export type DiagramEdge = {
-  id: string;
-  fromNodeId: string;
-  fromPort: Port;
-  toNodeId: string;
-  toPort: Port;
-};
-
-export type StrokeTool = "pen" | "highlighter";
-
-export type StrokePoint = { x: number; y: number };
-
-export type DiagramStroke = {
-  id: string;
-  tool: StrokeTool;
-  points: StrokePoint[];
-  width: number;
-  opacity: number;
-};
+// Re-export types for backwards compatibility
+export type { NodeType, DiagramNode, DiagramEdge, DiagramStroke, Port };
+export type { StrokeTool, StrokePoint } from "@/types/diagram";
 
 const NODE_TEMPLATES: Record<NodeType, { width: number; height: number; label: string }> = {
   react: { width: 120, height: 80, label: "React" },
@@ -67,8 +44,8 @@ type DiagramState = {
   addEdge: (
     fromNodeId: string,
     toNodeId: string,
-    fromPort: "top" | "right" | "bottom" | "left",
-    toPort: "top" | "right" | "bottom" | "left"
+    fromPort: Port,
+    toPort: Port
   ) => DiagramEdge;
 
   // remote-safe actions
@@ -190,6 +167,27 @@ export const useDiagramStore = create<DiagramState>((set, get) => ({
                 : state.selectedNodeId,
           };
 
+        case "RESTORE_NODE": {
+          console.log("✨ APPLY RESTORE_NODE:", action.payload.node.id, "restoring", action.payload.edges.length, "edges");
+          const node = action.payload.node;
+          const edges = action.payload.edges ?? [];
+
+          const nodesIdx = state.nodes.findIndex((n) => n.id === node.id);
+          const nextNodes =
+            nodesIdx === -1
+              ? [...state.nodes, node]
+              : state.nodes.map((n) => (n.id === node.id ? node : n));
+
+          const nextEdges = state.edges.slice();
+          for (const e of edges) {
+            const idx = nextEdges.findIndex((x) => x.id === e.id);
+            if (idx === -1) nextEdges.push(e);
+            else nextEdges[idx] = e;
+          }
+
+          return { nodes: nextNodes, edges: nextEdges };
+        }
+
         case "ADD_EDGE": {
           console.log("🔗 APPLY ADD_EDGE:", action.payload.edge.id);
           const edge = action.payload.edge;
@@ -242,6 +240,7 @@ export const useDiagramStore = create<DiagramState>((set, get) => ({
           return {
             nodes: state.nodes.filter((n) => n.id !== action.payload.node.id),
           };
+
         case "MOVE_NODE":
           return {
             nodes: state.nodes.map((n) =>
@@ -250,11 +249,18 @@ export const useDiagramStore = create<DiagramState>((set, get) => ({
                 : n
             ),
           };
+
         case "DELETE_NODE":
           return {
             nodes: [...state.nodes, action.payload.node],
             edges: [...state.edges, ...action.payload.edges],
           };
+
+        case "RESTORE_NODE":
+          return {
+            nodes: state.nodes.filter((n) => n.id !== action.payload.node.id),
+          };
+
         case "ADD_EDGE":
           return {
             edges: state.edges.filter((e) => e.id !== action.payload.edge.id),
