@@ -1,9 +1,11 @@
-import { useEffect, RefObject } from "react";
+import { useEffect, RefObject, useState } from "react";
 
 export function useCanvasResize(
   containerRef: RefObject<HTMLElement | null>,
   canvasRefs: RefObject<HTMLCanvasElement | null>[]
-): void {
+): number {
+  const [resizeTick, setResizeTick] = useState(0);
+
   useEffect(() => {
     const el = containerRef.current;
     if (!el) return;
@@ -16,9 +18,13 @@ export function useCanvasResize(
       for (const ref of canvasRefs) {
         const c = ref.current;
         if (!c) continue;
-        c.width = w;
-        c.height = h;
+
+        // Only write if changed to avoid extra clears
+        if (c.width !== w) c.width = w;
+        if (c.height !== h) c.height = h;
       }
+
+      setResizeTick((t) => t + 1);
     };
 
     resize();
@@ -28,4 +34,6 @@ export function useCanvasResize(
 
     return () => ro.disconnect();
   }, [containerRef, canvasRefs]);
+
+  return resizeTick;
 }

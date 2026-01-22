@@ -10,7 +10,7 @@ export type EdgeDraft = {
 } | null;
 
 function getEdgeColor(isDark: boolean): string {
-  return isDark ? "#a5b4fc" : "#6d5efc"; // Light: purple, Dark: lighter indigo
+  return isDark ? "#c7d2fe" : "#635c75";
 }
 
 export function renderEdges(

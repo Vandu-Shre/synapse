@@ -11,7 +11,7 @@ function getPenColor(isDark: boolean): string {
 }
 
 function getHighlighterColor(isDark: boolean): string {
-  return isDark ? "rgba(244, 243, 239, 0.5)" : "rgba(225, 211, 85, 0.62)";
+  return isDark ? "#facc15" : "#fde68a";
 }
 
 export function renderStrokes(

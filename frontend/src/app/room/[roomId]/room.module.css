@@ -176,9 +176,25 @@
   z-index: 50;
 }
 
+@media (max-width: 900px) {
+  .nodesDesktop {
+    top: 92px;
+  }
+}
+
 /* Mobile hamburger toggle (hidden by default) */
 .nodesToggle {
   display: none;
+}
+
+@media (max-width: 800px) {
+  .nodesToggle {
+    width: 52px;
+    height: 52px;
+    padding: 0;
+    border-radius: 999px;
+    justify-content: center;
+  }
 }
 
 /* Overlay and drawer base (hidden by default) */
@@ -243,7 +259,10 @@
     max-width: calc(100vw - 24px);
     overflow-x: auto;
     -ms-overflow-style: none;
-    scrollbar-width: none;
+    scrollbar-width: none; /* For Firefox */
+    -webkit-scrollbar {
+        display: none; /* For Chrome, Safari, and other WebKit-based browsers */
+    }
   }
   .toolbar::-webkit-scrollbar {
     display: none;

@@ -33,7 +33,7 @@ export default function Canvas({
 
   const canvasRefs = useMemo(() => [inkRef, strokesRef, nodesRef], []);
 
-  useCanvasResize(wrapperRef, canvasRefs);
+  const resizeTick = useCanvasResize(wrapperRef, canvasRefs);
   useBoardViewTransform(wrapperRef);
   useCanvasSeed(wsRef, roomId, userId, wsReady, hasRoomState);
 
@@ -65,7 +65,7 @@ export default function Canvas({
   const { edgeDraft, snapPreview, activeStroke, onDown, onMove, onUp } =
     useCanvasInteractions(wsRef, roomId, userId, inkHandlers);
 
-  useCanvasRenderer(nodesRef, strokesRef, edgeDraft, snapPreview, activeStroke);
+  useCanvasRenderer(nodesRef, strokesRef, edgeDraft, snapPreview, activeStroke, resizeTick);
 
   return (
     <div
