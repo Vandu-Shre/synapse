@@ -120,6 +120,13 @@
   font-weight: 500;
 }
 
+.errorMessage {
+  color: #dc2626;
+  font-size: 13px;
+  margin-top: 8px;
+  font-weight: 600;
+}
+
 .input:hover {
   border-color: rgba(109, 94, 252, 0.35);
   background: var(--panel);

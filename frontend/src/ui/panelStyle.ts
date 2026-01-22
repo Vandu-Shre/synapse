@@ -1,45 +1,45 @@
 import type { CSSProperties } from "react";
-import { ui } from "./tokens";
+import { ui, RADIUS, SPACING, FONT_SIZE, FONT_WEIGHT, TRANSITION, BLUR } from "./tokens";
 
 export const panelBase: CSSProperties = {
   background: ui.glassBg,
   border: `1px solid ${ui.border}`,
   boxShadow: ui.shadow,
-  backdropFilter: "blur(12px)",
-  borderRadius: 16,
+  backdropFilter: BLUR.lg,
+  borderRadius: RADIUS.xl,
 };
 
-export const panelCard = (radius = 18): CSSProperties => ({
+export const panelCard = (radius = RADIUS.xxl): CSSProperties => ({
   ...panelBase,
   borderRadius: radius,
 });
 
 export const buttonBase: CSSProperties = {
-  borderRadius: 12,
+  borderRadius: RADIUS.md,
   border: "1px solid transparent",
   background: "transparent",
   color: ui.text,
   cursor: "pointer",
-  fontSize: 13,
-  fontWeight: 650,
-  transition: "all 0.15s ease",
+  fontSize: FONT_SIZE.sm,
+  fontWeight: FONT_WEIGHT.semibold,
+  transition: TRANSITION.fast,
   fontFamily: "inherit",
 };
 
 export const toolButton = (active: boolean): CSSProperties => ({
   ...buttonBase,
-  padding: "8px 14px",
-  border: active ? `1px solid rgba(109, 94, 252, 0.28)` : "1px solid transparent",
+  padding: `${SPACING.sm}px ${SPACING.xl}px`,
+  border: active ? `1px solid ${ui.accentBorder}` : "1px solid transparent",
   background: active ? ui.accentSoft : "transparent",
 });
 
 export const paletteButton: CSSProperties = {
   ...buttonBase,
-  padding: "10px 12px",
+  padding: `${SPACING.md}px ${SPACING.lg}px`,
   height: 42,
   display: "flex",
   alignItems: "center",
-  gap: 10,
+  gap: SPACING.md,
   textAlign: "left",
   width: "100%",
   border: `1px solid ${ui.border}`,

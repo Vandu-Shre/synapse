@@ -3,30 +3,46 @@
 import { useEffect, useState } from "react";
 import { useDiagramStore } from "@/store/useDiagramStore";
 import { setViewTransform } from "@/lib/viewTransform";
+import { BREAKPOINT, MOBILE } from "@/ui/constants";
 
-function computeBounds(nodes: any[], strokes: any[]) {
-  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+interface Bounds {
+  minX: number;
+  minY: number;
+  maxX: number;
+  maxY: number;
+}
 
-  for (const n of nodes) {
-    minX = Math.min(minX, n.x);
-    minY = Math.min(minY, n.y);
-    maxX = Math.max(maxX, n.x + n.width);
-    maxY = Math.max(maxY, n.y + n.height);
+function computeBounds(nodes: any[], strokes: any[]): Bounds | null {
+  let minX = Infinity;
+  let minY = Infinity;
+  let maxX = -Infinity;
+  let maxY = -Infinity;
+
+  for (const node of nodes) {
+    minX = Math.min(minX, node.x);
+    minY = Math.min(minY, node.y);
+    maxX = Math.max(maxX, node.x + node.width);
+    maxY = Math.max(maxY, node.y + node.height);
   }
 
-  for (const s of strokes) {
-    for (const p of s.points) {
-      minX = Math.min(minX, p.x);
-      minY = Math.min(minY, p.y);
-      maxX = Math.max(maxX, p.x);
-      maxY = Math.max(maxY, p.y);
+  for (const stroke of strokes) {
+    for (const point of stroke.points) {
+      minX = Math.min(minX, point.x);
+      minY = Math.min(minY, point.y);
+      maxX = Math.max(maxX, point.x);
+      maxY = Math.max(maxY, point.y);
     }
   }
 
   if (minX === Infinity) return null;
+
   return { minX, minY, maxX, maxY };
 }
 
+/**
+ * Hook to compute and apply view transform for the board
+ * Handles responsive scaling for mobile devices
+ */
 export function useBoardViewTransform(
   wrapperRef: React.RefObject<HTMLDivElement | null>
 ) {
@@ -40,60 +56,65 @@ export function useBoardViewTransform(
   useEffect(() => {
     if (typeof window === "undefined") return;
 
-    const measure = () => {
+    const measureViewport = () => {
       const el = wrapperRef.current;
       if (!el) {
         setViewport({ vw: window.innerWidth, vh: window.innerHeight });
         return;
       }
-      const r = el.getBoundingClientRect();
-      setViewport({ vw: Math.floor(r.width), vh: Math.floor(r.height) });
+      const rect = el.getBoundingClientRect();
+      setViewport({ vw: Math.floor(rect.width), vh: Math.floor(rect.height) });
     };
 
-    measure();
+    measureViewport();
 
     const el = wrapperRef.current;
     if (!el || !("ResizeObserver" in window)) {
-      window.addEventListener("resize", measure);
-      return () => window.removeEventListener("resize", measure);
+      window.addEventListener("resize", measureViewport);
+      return () => window.removeEventListener("resize", measureViewport);
     }
 
-    const ro = new ResizeObserver(measure);
-    ro.observe(el);
-    return () => ro.disconnect();
+    const resizeObserver = new ResizeObserver(measureViewport);
+    resizeObserver.observe(el);
+    return () => resizeObserver.disconnect();
   }, [wrapperRef]);
 
   // Compute + publish view transform
   useEffect(() => {
     if (typeof window === "undefined") return;
 
-    const vw = viewport.vw || window.innerWidth;
-    const vh = viewport.vh || window.innerHeight;
+    const viewportWidth = viewport.vw || window.innerWidth;
+    const viewportHeight = viewport.vh || window.innerHeight;
 
-    const isMobile = vw < 800;
+    const isMobile = viewportWidth < BREAKPOINT.mobile;
 
     let scale = 1;
     let offsetX = 0;
     let offsetY = 0;
 
     if (isMobile) {
-      const b = computeBounds(nodes, strokes);
-      if (b) {
-        const pad = 24;
-        const contentW = Math.max(1, b.maxX - b.minX);
-        const contentH = Math.max(1, b.maxY - b.minY);
+      const bounds = computeBounds(nodes, strokes);
+      if (bounds) {
+        const contentWidth = Math.max(MOBILE.minDimension, bounds.maxX - bounds.minX);
+        const contentHeight = Math.max(MOBILE.minDimension, bounds.maxY - bounds.minY);
 
         scale = Math.min(
           1,
-          (vw - pad * 2) / contentW,
-          (vh - pad * 2) / contentH
+          (viewportWidth - MOBILE.padding * 2) / contentWidth,
+          (viewportHeight - MOBILE.padding * 2) / contentHeight
         );
 
-        offsetX = (vw - contentW * scale) / 2 - b.minX * scale;
-        offsetY = (vh - contentH * scale) / 2 - b.minY * scale;
+        offsetX = (viewportWidth - contentWidth * scale) / 2 - bounds.minX * scale;
+        offsetY = (viewportHeight - contentHeight * scale) / 2 - bounds.minY * scale;
       }
     }
 
-    setViewTransform({ vw, vh, scale, offsetX, offsetY });
+    setViewTransform({ 
+      vw: viewportWidth, 
+      vh: viewportHeight, 
+      scale, 
+      offsetX, 
+      offsetY 
+    });
   }, [viewport.vw, viewport.vh, nodes, strokes]);
 }

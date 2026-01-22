@@ -4,19 +4,25 @@ import { useRouter } from "next/navigation";
 import styles from "./page.module.css";
 import { ThemeToggle } from "@/components/theme/ThemeToggle";
 
+const API_BASE_URL = "http://localhost:3001";
+
 export default function HomePage() {
   const [roomId, setRoomId] = useState("");
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const router = useRouter();
 
   const handleJoin = async () => {
     if (!roomId.trim()) return;
+
     setLoading(true);
+    setError(null);
+
     try {
-      const res = await fetch(`http://localhost:3001/rooms/${roomId}`);
+      const res = await fetch(`${API_BASE_URL}/rooms/${roomId}`);
 
       if (!res.ok) {
-        // console.error("Room not found");
+        setError("Room not found");
         setLoading(false);
         return;
       }
@@ -25,19 +31,21 @@ export default function HomePage() {
       if (data.exists) {
         router.push(`/room/${roomId}`);
       } else {
-        // console.error("Room doesn't exist");
+        setError("Room doesn't exist");
         setLoading(false);
       }
     } catch (err) {
-      // console.error("Failed to validate room:", err);
+      setError("Failed to validate room");
       setLoading(false);
     }
   };
 
   const handleCreate = async () => {
     setLoading(true);
+    setError(null);
+
     try {
-      const res = await fetch(`http://localhost:3001/rooms`, {
+      const res = await fetch(`${API_BASE_URL}/rooms`, {
         method: "POST",
       });
       const data = await res.json();
@@ -45,7 +53,7 @@ export default function HomePage() {
 
       router.push(`/room/${newRoomId}`);
     } catch (err) {
-      // console.error("Failed to create room", err);
+      setError("Failed to create room");
       setLoading(false);
     }
   };
@@ -84,6 +92,7 @@ export default function HomePage() {
                 className={styles.input}
                 disabled={loading}
               />
+              {error && <p className={styles.errorMessage}>{error}</p>}
             </div>
 
             <div className={styles.buttonGroup}>
@@ -122,7 +131,9 @@ export default function HomePage() {
         </div>
 
         <div className={styles.footer}>
-          <p>Ephemeral rooms • No accounts • Designed for real-time collaboration</p>
+          <p>
+            Ephemeral rooms • No accounts • Designed for real-time collaboration
+          </p>
         </div>
       </div>
     </div>

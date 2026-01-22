@@ -7,6 +7,13 @@ import type { NodeType } from "@/types/diagram";
 import { sendAction } from "@/lib/ws/send";
 import { screenToWorld, getViewTransform } from "@/lib/viewTransform";
 import styles from "@/app/room/[roomId]/room.module.css";
+import { SAFE_ZONE, SAFE_LEFT, SAFE_TOP, BREAKPOINT, NODE } from "@/ui/constants";
+
+// Layout constants
+const PALETTE_WIDTH = 320;
+const PALETTE_PADDING = 16;
+const SAFE_MARGIN = 16;
+const TOOLBAR_HEIGHT = 60;
 
 const palette: Array<{ type: NodeType; label: string }> = [
   { type: "react", label: "⚛️ React" },
@@ -18,11 +25,6 @@ const palette: Array<{ type: NodeType; label: string }> = [
   { type: "cloud", label: "☁️ Cloud" },
   { type: "text", label: "📝 Text" },
 ];
-
-const PALETTE_W = 320; // was 190; matches desktop card width
-const PALETTE_PAD = 16;
-const SAFE_LEFT = PALETTE_PAD + PALETTE_W + 16;
-const SAFE_TOP = 16 + 60;
 
 export function NodePalette({
   wsRef,
@@ -44,11 +46,11 @@ export function NodePalette({
     const rawScreenY = lastPointer?.y ?? window.innerHeight / 2;
 
     const { vw } = getViewTransform();
-    const isMobile = vw < 800;
+    const isMobile = vw < BREAKPOINT.mobile;
 
-    const p = screenToWorld(rawScreenX, rawScreenY);
-    let x = p.x;
-    let y = p.y;
+    const worldPos = screenToWorld(rawScreenX, rawScreenY);
+    let x = worldPos.x;
+    let y = worldPos.y;
 
     if (!isMobile) {
       const safeLeftWorld = screenToWorld(SAFE_LEFT, 0).x;
@@ -57,7 +59,7 @@ export function NodePalette({
       y = Math.max(y, safeTopWorld);
     }
 
-    const node = buildNode(type, x - 60, y - 40);
+    const node = buildNode(type, x - NODE.defaultWidth / 2, y - NODE.defaultHeight / 2);
 
     const action = {
       id: crypto.randomUUID(),
@@ -81,14 +83,14 @@ export function NodePalette({
     >
       <div className={styles.paletteTitle}>➕ Nodes</div>
       <div className={styles.paletteList}>
-        {palette.map((p) => (
+        {palette.map((item) => (
           <button
-            key={p.type}
-            onClick={() => addAt(p.type)}
+            key={item.type}
+            onClick={() => addAt(item.type)}
             className={styles.paletteButton}
           >
-            <span className={styles.paletteIcon}>{p.label.split(" ")[0]}</span>
-            <span>{p.label.split(" ").slice(1).join(" ")}</span>
+            <span className={styles.paletteIcon}>{item.label.split(" ")[0]}</span>
+            <span>{item.label.split(" ").slice(1).join(" ")}</span>
           </button>
         ))}
       </div>

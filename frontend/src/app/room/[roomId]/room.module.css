@@ -61,7 +61,9 @@
   background: var(--panel);
   border: 1px solid var(--border);
   box-shadow: var(--shadow-soft);
+  /* Safari/WebKit support */
   -webkit-backdrop-filter: blur(12px);
+  /* Standard */
   backdrop-filter: blur(12px);
   font-weight: 800;
   color: var(--text);
@@ -93,7 +95,9 @@
   background: var(--panel);
   border: 1px solid var(--border);
   box-shadow: var(--shadow-soft);
+  /* Safari/WebKit support */
   -webkit-backdrop-filter: blur(12px);
+  /* Standard */
   backdrop-filter: blur(12px);
   font-weight: 800;
   cursor: pointer;
@@ -128,7 +132,9 @@
   border: 1px solid var(--border);
   border-radius: 16px;
   box-shadow: var(--shadow);
+  /* Safari/WebKit support */
   -webkit-backdrop-filter: blur(12px);
+  /* Standard */
   backdrop-filter: blur(12px);
 }
 
@@ -164,7 +170,9 @@
   border: 1px solid var(--border);
   border-radius: 18px;
   box-shadow: var(--shadow);
+  /* Safari/WebKit support */
   -webkit-backdrop-filter: blur(12px);
+  /* Standard */
   backdrop-filter: blur(12px);
 }
 
@@ -258,8 +266,11 @@
     top: 72px;
     max-width: calc(100vw - 24px);
     overflow-x: auto;
+    /* Hide scrollbar in IE/Edge */
     -ms-overflow-style: none;
+    /* Hide scrollbar in Firefox */
     scrollbar-width: none; /* For Firefox */
+    /* Hide scrollbar in Chrome/Safari/WebKit */
     -webkit-scrollbar {
         display: none; /* For Chrome, Safari, and other WebKit-based browsers */
     }
@@ -290,7 +301,9 @@
     background: var(--panel);
     border: 1px solid var(--border);
     box-shadow: var(--shadow-soft);
+    /* Safari/WebKit support */
     -webkit-backdrop-filter: blur(12px);
+    /* Standard */
     backdrop-filter: blur(12px);
     font-weight: 800;
     color: var(--text);
@@ -304,7 +317,9 @@
     inset: 0;
     z-index: 65;
     background: rgba(15, 23, 42, 0.22);
+    /* Safari/WebKit support */
     -webkit-backdrop-filter: blur(2px);
+    /* Standard */
     backdrop-filter: blur(2px);
     opacity: 0;
     pointer-events: none;

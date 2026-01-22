@@ -7,6 +7,10 @@ import { getNearestPort, isWithinSnapDistance } from "@/lib/diagram/ports";
 import { sendAction } from "@/lib/ws/send";
 import type { DiagramEdge } from "@/types/diagram";
 import type { EdgeDraft, SnapPreview, ActiveStroke } from "@/lib/diagram/render";
+import { THROTTLE, STROKE } from "@/ui/constants";
+
+// Constants
+const THROTTLE_INTERVAL_MS = 30;
 
 type DragState =
   | { mode: "idle" }
@@ -18,6 +22,9 @@ type InkHandlers = {
   inkMove: (x: number, y: number) => void;
 };
 
+/**
+ * Hook for managing canvas interaction logic (drag, draw, connect)
+ */
 export function useCanvasInteractions(
   wsRef: RefObject<WebSocket | null>,
   roomId: string,
@@ -56,8 +63,7 @@ export function useCanvasInteractions(
 
       setLastPointer({ x: sx, y: sy });
       const p = screenToWorld(sx, sy);
-      const x = p.x;
-      const y = p.y;
+      const { x, y } = p;
 
       // Pen/Highlighter: start stroke
       if (tool === "pen" || tool === "highlighter") {
@@ -143,13 +149,12 @@ export function useCanvasInteractions(
 
       setLastPointer({ x: sx, y: sy });
       const p = screenToWorld(sx, sy);
-      const x = p.x;
-      const y = p.y;
+      const { x, y } = p;
 
       // Active stroke: add points
       if (activeStroke) {
-        setActiveStroke((s) =>
-          s ? { ...s, points: [...s.points, { x, y }] } : s
+        setActiveStroke((prev) =>
+          prev ? { ...prev, points: [...prev.points, { x, y }] } : prev
         );
         return;
       }
@@ -191,7 +196,7 @@ export function useCanvasInteractions(
 
         // Throttled broadcast
         const now = Date.now();
-        if (now - lastMoveTimeRef.current >= 30) {
+        if (now - lastMoveTimeRef.current >= THROTTLE.mouseMoveMs) {
           sendAction(wsRef, roomId, action);
           lastMoveTimeRef.current = now;
           pendingMoveRef.current = null;
@@ -217,16 +222,16 @@ export function useCanvasInteractions(
   const onUp = useCallback(() => {
     // Send any pending MOVE_NODE action
     if (drag.mode === "node" && pendingMoveRef.current) {
-      const p = pendingMoveRef.current;
+      const pending = pendingMoveRef.current;
       const action = {
         id: crypto.randomUUID(),
         userId,
         ts: Date.now(),
         type: "MOVE_NODE" as const,
         payload: {
-          nodeId: p.nodeId,
-          from: { x: p.fromX, y: p.fromY },
-          to: { x: p.toX, y: p.toY },
+          nodeId: pending.nodeId,
+          from: { x: pending.fromX, y: pending.fromY },
+          to: { x: pending.toX, y: pending.toY },
         },
       };
 
@@ -241,8 +246,8 @@ export function useCanvasInteractions(
         id: activeStroke.id,
         tool: activeStroke.tool,
         points: activeStroke.points,
-        width: activeStroke.tool === "pen" ? 3 : 14,
-        opacity: activeStroke.tool === "pen" ? 1 : 0.35,
+        width: activeStroke.tool === "pen" ? STROKE.penWidth : STROKE.highlighterWidth,
+        opacity: activeStroke.tool === "pen" ? STROKE.penOpacity : STROKE.highlighterOpacity,
       };
 
       const action = {
