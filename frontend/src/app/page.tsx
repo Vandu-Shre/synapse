@@ -2,6 +2,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import styles from "./page.module.css";
+import { ThemeToggle } from "@/components/theme/ThemeToggle";
 
 export default function HomePage() {
   const [roomId, setRoomId] = useState("");
@@ -58,6 +59,7 @@ export default function HomePage() {
   return (
     <div className={styles.container}>
       <div className={styles.background}></div>
+      <ThemeToggle />
 
       <div className={styles.content}>
         <div className={styles.header}>

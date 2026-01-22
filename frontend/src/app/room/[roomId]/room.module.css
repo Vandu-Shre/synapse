@@ -1,0 +1,279 @@
+/* ===== Canvas Wrapper ===== */
+.canvasWrapper {
+  position: absolute;
+  inset: 0;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  background: transparent;
+  box-shadow: inset 0 0 0 1px var(--border);
+  touch-action: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+/* ===== Canvas Background ===== */
+.canvasBackground {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(1000px 600px at 18% 12%, rgba(109, 94, 252, 0.08), transparent 60%),
+    radial-gradient(900px 600px at 88% 16%, rgba(255, 119, 200, 0.07), transparent 62%),
+    radial-gradient(900px 600px at 62% 92%, rgba(102, 211, 199, 0.07), transparent 62%),
+    radial-gradient(circle at 1px 1px, rgba(15, 23, 42, 0.045) 1px, transparent 0) 0 0 / 28px 28px,
+    var(--bg);
+  pointer-events: none;
+}
+
+/* ===== Canvas Layers ===== */
+.canvasLayer {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.inkLayer {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  background: transparent;
+  display: block;
+}
+
+/* ===== Theme Toggle Wrapper ===== */
+.themeToggleWrapper {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  z-index: 100;
+}
+
+/* ===== Badge ===== */
+.badge {
+  position: absolute;
+  left: 80px;
+  bottom: 16px;
+  padding: 10px 12px;
+  border-radius: 999px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-soft);
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
+  font-weight: 800;
+  color: var(--text);
+  font-size: 13px;
+  z-index: 40;
+}
+
+/* ===== HUD ===== */
+.hud {
+  position: absolute;
+  right: 16px;
+  bottom: 16px;
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  z-index: 60;
+}
+
+.hudButton {
+  padding: 10px 12px;
+  border-radius: 999px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-soft);
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
+  font-weight: 800;
+  cursor: pointer;
+  font-size: 13px;
+  color: var(--text);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  transition: all 0.2s ease;
+}
+
+.hudButton:hover {
+  background: var(--panel);
+  box-shadow: var(--shadow);
+}
+
+.hudButtonDanger {
+  margin-left: 8px;
+}
+
+/* ===== Toolbar ===== */
+.toolbar {
+  position: absolute;
+  top: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 6px;
+  padding: 8px;
+  z-index: 50;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  box-shadow: var(--shadow);
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
+}
+
+.toolbarButton {
+  padding: 8px 14px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  background: transparent;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.toolbarButton:hover {
+  background: rgba(109, 94, 252, 0.08);
+}
+
+.toolbarButtonActive {
+  background: rgba(109, 94, 252, 0.12);
+  border-color: rgba(109, 94, 252, 0.25);
+}
+
+/* ===== Node Palette ===== */
+.nodePalette {
+  position: absolute;
+  top: 16px;
+  left: 16px;
+  width: 190px;
+  padding: 12px;
+  z-index: 50;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  box-shadow: var(--shadow);
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
+}
+
+.paletteTitle {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.paletteList {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.paletteButton {
+  height: 42px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 8px 12px;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  background: transparent;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.paletteButton:hover {
+  background: rgba(109, 94, 252, 0.10);
+  border-color: rgba(109, 94, 252, 0.25);
+}
+
+.paletteIcon {
+  width: 22px;
+  text-align: center;
+}
+
+.paletteHint {
+  margin-top: 10px;
+  font-size: 11px;
+  color: var(--muted);
+}
+
+/* ===== Labels (hide on small screens) ===== */
+.label {
+  display: inline;
+}
+
+/* ===== Responsive ===== */
+@media (max-width: 800px) {
+  .toolbar {
+    top: 10px;
+    max-width: calc(100vw - 24px);
+    overflow-x: auto;
+    -ms-overflow-style: none;  /* IE and Edge */
+    scrollbar-width: none;  /* Firefox (fallback, limited browser support) */
+    overflow: hidden; /* Fallback for browsers that do not support scrollbar-width */
+  }
+  .toolbar::-webkit-scrollbar {
+    display: none;  /* Chrome, Safari, Opera */
+  }
+  .label {
+    display: none;
+  }
+  .toolbarButton {
+    padding: 10px 12px;
+    min-width: 44px;
+    justify-content: center;
+  }
+  .hud {
+    gap: 10px;
+    justify-content: center;
+  }
+  .hudButton {
+    padding: 12px;
+    min-width: 44px;
+    justify-content: center;
+  }
+  .nodePalette {
+    width: auto;
+    max-width: calc(100vw - 32px);
+  }
+  .paletteButton {
+    padding: 10px;
+  }
+}
+
+/* ===== Dark Mode ===== */
+:global(.dark) .canvasBackground {
+  background:
+    radial-gradient(1000px 600px at 18% 12%, rgba(109, 94, 252, 0.12), transparent 60%),
+    radial-gradient(900px 600px at 88% 16%, rgba(255, 119, 200, 0.10), transparent 62%),
+    radial-gradient(900px 600px at 62% 92%, rgba(102, 211, 199, 0.10), transparent 62%),
+    radial-gradient(circle at 1px 1px, rgba(255, 255, 255, 0.04) 1px, transparent 0) 0 0 / 28px 28px,
+    var(--bg);
+}
+
+:global(.dark) .toolbarButton:hover,
+:global(.dark) .paletteButton:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+:global(.dark) .toolbarButtonActive {
+  background: rgba(109, 94, 252, 0.20);
+  border-color: rgba(109, 94, 252, 0.35);
+}

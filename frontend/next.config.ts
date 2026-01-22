@@ -2,7 +2,7 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   devIndicators: {
-    position: "bottom-left",
+    position: undefined, // Disable the Next.js indicator
   },
 };
 

@@ -31,6 +31,7 @@ type DiagramState = {
   setRoomState: (nodes: DiagramNode[], edges: DiagramEdge[], strokes: DiagramStroke[]) => void;
   deleteSelectedNodeAsAction: (userId: string) => DiagramAction | null;
   deleteSelectedEdgeAsAction: (userId: string) => DiagramAction | null;
+  deleteSelectedAsAction: (userId: string) => DiagramAction | null;
   applyAction: (action: DiagramAction) => void;
   applyInverse: (action: DiagramAction) => void;
 
@@ -122,6 +123,13 @@ export const useDiagramStore = create<DiagramState>((set, get) => ({
     };
 
     return action;
+  },
+
+  deleteSelectedAsAction: (userId) => {
+    return (
+      get().deleteSelectedNodeAsAction(userId) ??
+      get().deleteSelectedEdgeAsAction(userId)
+    );
   },
 
   applyAction: (action) => {

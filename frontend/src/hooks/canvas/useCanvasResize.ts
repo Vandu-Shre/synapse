@@ -1,12 +1,17 @@
 import { useEffect, RefObject } from "react";
 
 export function useCanvasResize(
+  containerRef: RefObject<HTMLElement | null>,
   canvasRefs: RefObject<HTMLCanvasElement | null>[]
 ): void {
   useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+
     const resize = () => {
-      const w = window.innerWidth;
-      const h = window.innerHeight;
+      const rect = el.getBoundingClientRect();
+      const w = Math.max(1, Math.floor(rect.width));
+      const h = Math.max(1, Math.floor(rect.height));
 
       for (const ref of canvasRefs) {
         const c = ref.current;
@@ -17,7 +22,10 @@ export function useCanvasResize(
     };
 
     resize();
-    window.addEventListener("resize", resize);
-    return () => window.removeEventListener("resize", resize);
-  }, [canvasRefs]);
+
+    const ro = new ResizeObserver(resize);
+    ro.observe(el);
+
+    return () => ro.disconnect();
+  }, [containerRef, canvasRefs]);
 }

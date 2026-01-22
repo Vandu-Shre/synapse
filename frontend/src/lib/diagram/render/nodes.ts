@@ -13,7 +13,8 @@ export function renderNodes(
   nodes: DiagramNode[],
   selectedNodeId: string | null,
   snapPreview: SnapPreview,
-  isConnecting: boolean
+  isConnecting: boolean,
+  isDark: boolean = false // <-- make isDark optional with a default value
 ): void {
   for (const n of nodes) {
     const t = NODE_THEME[n.type];

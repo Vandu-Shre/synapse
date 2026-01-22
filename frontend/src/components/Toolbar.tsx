@@ -1,7 +1,7 @@
 "use client";
 
 import { useToolStore, ToolMode } from "@/store/useToolStore";
-import { panelStyle } from "@/ui/panelStyle";
+import styles from "@/app/room/[roomId]/room.module.css";
 
 const tools: Array<{ id: ToolMode; label: string }> = [
   { id: "select", label: "🖱️ Select" },
@@ -11,41 +11,37 @@ const tools: Array<{ id: ToolMode; label: string }> = [
   { id: "eraser", label: "🧽 Eraser" },
 ];
 
+function splitLabel(label: string) {
+  const space = label.indexOf(" ");
+  if (space === -1) return { icon: label, text: "" };
+  return { icon: label.slice(0, space), text: label.slice(space + 1) };
+}
+
 export function Toolbar() {
   const tool = useToolStore((s) => s.tool);
   const setTool = useToolStore((s) => s.setTool);
 
   return (
     <div
+      className={styles.toolbar}
       onMouseDown={(e) => e.stopPropagation()}
       onMouseMove={(e) => e.stopPropagation()}
       onMouseUp={(e) => e.stopPropagation()}
-      style={{
-        position: "absolute",
-        top: 16,
-        left: "50%",
-        transform: "translateX(-50%)",
-        display: "flex",
-        gap: 6,
-        padding: 8,
-        zIndex: 50,
-        ...panelStyle.panel,
-      } as React.CSSProperties}
     >
       {tools.map((t) => {
         const active = tool === t.id;
+        const { icon, text } = splitLabel(t.label);
 
         return (
           <button
             key={t.id}
             onClick={() => setTool(t.id)}
-            style={{
-              ...panelStyle.button.base,
-              padding: "8px 14px",
-              ...(active && panelStyle.button.active),
-            } as React.CSSProperties}
+            className={`${styles.toolbarButton} ${active ? styles.toolbarButtonActive : ""}`}
+            aria-label={text || t.id}
+            title={text || t.id}
           >
-            {t.label}
+            <span aria-hidden>{icon}</span>
+            <span className={styles.label}>{text}</span>
           </button>
         );
       })}

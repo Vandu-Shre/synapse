@@ -9,12 +9,17 @@ export type EdgeDraft = {
   toY: number;
 } | null;
 
+function getEdgeColor(isDark: boolean): string {
+  return isDark ? "#a5b4fc" : "#6d5efc"; // Light: purple, Dark: lighter indigo
+}
+
 export function renderEdges(
   ctx: CanvasRenderingContext2D,
   nodes: DiagramNode[],
   edges: DiagramEdge[],
   selectedEdgeId: string | null,
-  edgeDraft: EdgeDraft
+  edgeDraft: EdgeDraft,
+  isDark: boolean = false
 ): void {
   // Draw saved edges
   for (const e of edges) {
@@ -26,14 +31,13 @@ export function renderEdges(
     const p2 = getPortPosition(to, e.toPort);
 
     const isSelected = e.id === selectedEdgeId;
+    const edgeColor = getEdgeColor(isDark);
 
     ctx.beginPath();
     ctx.moveTo(p1.x, p1.y);
     ctx.lineTo(p2.x, p2.y);
     ctx.lineWidth = isSelected ? 3.5 : 2;
-    ctx.strokeStyle = isSelected
-      ? "rgba(109, 94, 252, 0.80)"
-      : "rgba(15,23,42,0.38)";
+    ctx.strokeStyle = isSelected ? edgeColor : `${edgeColor}99`;
     ctx.stroke();
 
     // Draw selection indicator
@@ -42,7 +46,7 @@ export function renderEdges(
       const midY = (p1.y + p2.y) / 2;
       ctx.beginPath();
       ctx.arc(midX, midY, 6, 0, Math.PI * 2);
-      ctx.fillStyle = "rgba(109, 94, 252, 0.80)";
+      ctx.fillStyle = edgeColor;
       ctx.fill();
     }
   }
@@ -53,11 +57,12 @@ export function renderEdges(
     if (from) {
       const fromPort = getNearestPort(from, edgeDraft.startX, edgeDraft.startY);
       const p1 = getPortPosition(from, fromPort);
+      const edgeColor = getEdgeColor(isDark);
 
       ctx.beginPath();
       ctx.moveTo(p1.x, p1.y);
       ctx.lineTo(edgeDraft.toX, edgeDraft.toY);
-      ctx.strokeStyle = "rgba(109,94,252,0.40)";
+      ctx.strokeStyle = `${edgeColor}66`;
       ctx.lineWidth = 2;
       ctx.setLineDash([4, 4]);
       ctx.stroke();
