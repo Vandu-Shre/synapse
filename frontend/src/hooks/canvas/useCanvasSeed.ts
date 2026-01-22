@@ -21,7 +21,7 @@ export function useCanvasSeed(
     const seedKey = `synapse:seeded:${roomId}`;
     if (localStorage.getItem(seedKey) === "1") return;
 
-    console.log("🌱 Seeding initial nodes...");
+    // console.log("🌱 Seeding initial nodes...");
     const n1 = buildNode("react", 200, 200);
     const n2 = buildNode("db", 500, 320);
 
@@ -38,6 +38,6 @@ export function useCanvasSeed(
     }
 
     localStorage.setItem(seedKey, "1");
-    console.log("✅ Seeded initial nodes");
+    // console.log("✅ Seeded initial nodes");
   }, [wsReady, hasRoomState, roomId, userId, nodes.length, buildNode, applyAction, wsRef]);
 }

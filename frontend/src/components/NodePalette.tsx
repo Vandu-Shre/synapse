@@ -5,6 +5,7 @@ import { useDiagramStore } from "@/store/useDiagramStore";
 import { useToolStore } from "@/store/useToolStore";
 import type { NodeType } from "@/types/diagram";
 import { sendAction } from "@/lib/ws/send";
+import { screenToWorld, getViewTransform } from "@/lib/viewTransform";
 import styles from "@/app/room/[roomId]/room.module.css";
 
 const palette: Array<{ type: NodeType; label: string }> = [
@@ -18,7 +19,7 @@ const palette: Array<{ type: NodeType; label: string }> = [
   { type: "text", label: "📝 Text" },
 ];
 
-const PALETTE_W = 190;
+const PALETTE_W = 320; // was 190; matches desktop card width
 const PALETTE_PAD = 16;
 const SAFE_LEFT = PALETTE_PAD + PALETTE_W + 16;
 const SAFE_TOP = 16 + 60;
@@ -27,21 +28,34 @@ export function NodePalette({
   wsRef,
   roomId,
   userId,
+  onPick,
 }: {
   wsRef: React.RefObject<WebSocket | null>;
   roomId: string;
   userId: string;
+  onPick?: () => void;
 }) {
   const buildNode = useDiagramStore((s) => s.buildNode);
   const applyAction = useDiagramStore((s) => s.applyAction);
   const lastPointer = useToolStore((s) => s.lastPointer);
 
   const addAt = (type: NodeType) => {
-    const rawX = lastPointer?.x ?? window.innerWidth / 2;
-    const rawY = lastPointer?.y ?? window.innerHeight / 2;
+    const rawScreenX = lastPointer?.x ?? window.innerWidth / 2;
+    const rawScreenY = lastPointer?.y ?? window.innerHeight / 2;
 
-    const x = Math.max(rawX, SAFE_LEFT);
-    const y = Math.max(rawY, SAFE_TOP);
+    const { vw } = getViewTransform();
+    const isMobile = vw < 800;
+
+    const p = screenToWorld(rawScreenX, rawScreenY);
+    let x = p.x;
+    let y = p.y;
+
+    if (!isMobile) {
+      const safeLeftWorld = screenToWorld(SAFE_LEFT, 0).x;
+      const safeTopWorld = screenToWorld(0, SAFE_TOP).y;
+      x = Math.max(x, safeLeftWorld);
+      y = Math.max(y, safeTopWorld);
+    }
 
     const node = buildNode(type, x - 60, y - 40);
 
@@ -55,6 +69,7 @@ export function NodePalette({
 
     applyAction(action);
     sendAction(wsRef, roomId, action);
+    onPick?.(); // close drawer on mobile
   };
 
   return (

@@ -41,7 +41,10 @@ export function CanvasHud({ wsRef, roomId, userId }: CanvasHudProps) {
       <div className={styles.themeToggleWrapper}>
         <ThemeToggle />
       </div>
-      <div className={styles.badge}>🧠 Synapse</div>
+      <div className={styles.badge} aria-label="Synapse">
+        <span aria-hidden className={styles.badgeIcon}>🧠</span>
+        <span className={styles.label}> Synapse</span>
+      </div>
 
       <div
         className={styles.hud}

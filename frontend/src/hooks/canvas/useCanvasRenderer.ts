@@ -28,7 +28,13 @@ export function useCanvasRenderer(
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
 
+    const { getViewTransform } = require("@/lib/viewTransform");
+    const view = getViewTransform();
+
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
     clearCanvas(ctx);
+
+    ctx.setTransform(view.scale, 0, 0, view.scale, view.offsetX, view.offsetY);
     renderStrokes(ctx, strokes, activeStroke, isDark);
   }, [strokes, activeStroke, strokesRef, isDark]);
 
@@ -39,7 +45,13 @@ export function useCanvasRenderer(
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
 
+    const { getViewTransform } = require("@/lib/viewTransform");
+    const view = getViewTransform();
+
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
     clearCanvas(ctx);
+
+    ctx.setTransform(view.scale, 0, 0, view.scale, view.offsetX, view.offsetY);
     renderEdges(ctx, nodes, edges, selectedEdgeId, edgeDraft, isDark);
     renderNodes(ctx, nodes, selectedNodeId, snapPreview, !!edgeDraft, isDark);
   }, [nodes, edges, edgeDraft, snapPreview, selectedNodeId, selectedEdgeId, nodesRef, isDark]);

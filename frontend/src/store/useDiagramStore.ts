@@ -72,13 +72,13 @@ export const useDiagramStore = create<DiagramState>((set, get) => ({
   deleteSelectedNodeAsAction: (userId) => {
     const nodeId = get().selectedNodeId;
     if (!nodeId) {
-      console.warn("❌ No selectedNodeId in store");
+      // console.warn("❌ No selectedNodeId in store");
       return null;
     }
 
     const node = get().nodes.find((n) => n.id === nodeId);
     if (!node) {
-      console.warn("❌ Selected node not found in nodes array");
+      // console.warn("❌ Selected node not found in nodes array");
       return null;
     }
 
@@ -86,7 +86,7 @@ export const useDiagramStore = create<DiagramState>((set, get) => ({
       (e) => e.fromNodeId === nodeId || e.toNodeId === nodeId
     );
 
-    console.log(`📋 Building DELETE_NODE action for ${nodeId}, removing ${edges.length} edges`);
+    // console.log(`📋 Building DELETE_NODE action for ${nodeId}, removing ${edges.length} edges`);
 
     const action: DiagramAction = {
       id: crypto.randomUUID(),
@@ -102,17 +102,17 @@ export const useDiagramStore = create<DiagramState>((set, get) => ({
   deleteSelectedEdgeAsAction: (userId) => {
     const edgeId = get().selectedEdgeId;
     if (!edgeId) {
-      console.warn("❌ No selectedEdgeId in store");
+      // console.warn("❌ No selectedEdgeId in store");
       return null;
     }
 
     const edge = get().edges.find((e) => e.id === edgeId);
     if (!edge) {
-      console.warn("❌ Selected edge not found in edges array");
+      // console.warn("❌ Selected edge not found in edges array");
       return null;
     }
 
-    console.log(`📋 Building DELETE_EDGE action for ${edgeId}`);
+    // console.log(`📋 Building DELETE_EDGE action for ${edgeId}`);
 
     const action: DiagramAction = {
       id: crypto.randomUUID(),
@@ -133,12 +133,12 @@ export const useDiagramStore = create<DiagramState>((set, get) => ({
   },
 
   applyAction: (action) => {
-    console.log("🎬 applyAction called with type:", action.type);
+    // console.log("🎬 applyAction called with type:", action.type);
     
     set((state) => {
       switch (action.type) {
         case "ADD_NODE": {
-          console.log("➕ APPLY ADD_NODE:", action.payload.node.id);
+          // console.log("➕ APPLY ADD_NODE:", action.payload.node.id);
           const node = action.payload.node;
           const idx = state.nodes.findIndex((n) => n.id === node.id);
           if (idx === -1) return { nodes: [...state.nodes, node] };
@@ -148,7 +148,7 @@ export const useDiagramStore = create<DiagramState>((set, get) => ({
         }
 
         case "MOVE_NODE":
-          console.log("🔄 APPLY MOVE_NODE:", action.payload.nodeId);
+          // console.log("🔄 APPLY MOVE_NODE:", action.payload.nodeId);
           return {
             nodes: state.nodes.map((n) =>
               n.id === action.payload.nodeId
@@ -158,7 +158,7 @@ export const useDiagramStore = create<DiagramState>((set, get) => ({
           };
 
         case "DELETE_NODE":
-          console.log("💣 APPLY DELETE_NODE:", action.payload.node.id, "removing", action.payload.edges.length, "edges");
+          // console.log("💣 APPLY DELETE_NODE:", action.payload.node.id, "removing", action.payload.edges.length, "edges");
           return {
             nodes: state.nodes.filter((n) => n.id !== action.payload.node.id),
             edges: state.edges.filter(
@@ -173,7 +173,7 @@ export const useDiagramStore = create<DiagramState>((set, get) => ({
           };
 
         case "RESTORE_NODE": {
-          console.log("✨ APPLY RESTORE_NODE:", action.payload.node.id, "restoring", action.payload.edges.length, "edges");
+          // console.log("✨ APPLY RESTORE_NODE:", action.payload.node.id, "restoring", action.payload.edges.length, "edges");
           const node = action.payload.node;
           const edges = action.payload.edges ?? [];
 
@@ -194,7 +194,7 @@ export const useDiagramStore = create<DiagramState>((set, get) => ({
         }
 
         case "ADD_EDGE": {
-          console.log("🔗 APPLY ADD_EDGE:", action.payload.edge.id);
+          // console.log("🔗 APPLY ADD_EDGE:", action.payload.edge.id);
           const edge = action.payload.edge;
           const idx = state.edges.findIndex((e) => e.id === edge.id);
           if (idx === -1) return { edges: [...state.edges, edge] };
@@ -204,7 +204,7 @@ export const useDiagramStore = create<DiagramState>((set, get) => ({
         }
 
         case "DELETE_EDGE":
-          console.log("🚫 APPLY DELETE_EDGE:", action.payload.edge.id);
+          // console.log("🚫 APPLY DELETE_EDGE:", action.payload.edge.id);
           return {
             edges: state.edges.filter((e) => e.id !== action.payload.edge.id),
             selectedEdgeId:
@@ -214,7 +214,7 @@ export const useDiagramStore = create<DiagramState>((set, get) => ({
           };
 
         case "ADD_STROKE": {
-          console.log("🖍️ APPLY ADD_STROKE:", action.payload.stroke.id);
+          // console.log("🖍️ APPLY ADD_STROKE:", action.payload.stroke.id);
           const stroke = action.payload.stroke;
           const idx = state.strokes.findIndex((s) => s.id === stroke.id);
           if (idx === -1) return { strokes: [...state.strokes, stroke] };
@@ -224,7 +224,7 @@ export const useDiagramStore = create<DiagramState>((set, get) => ({
         }
 
         case "DELETE_STROKE":
-          console.log("🧹 APPLY DELETE_STROKE:", action.payload.stroke.id);
+          // console.log("🧹 APPLY DELETE_STROKE:", action.payload.stroke.id);
           return {
             strokes: state.strokes.filter(
               (s) => s.id !== action.payload.stroke.id
@@ -232,7 +232,7 @@ export const useDiagramStore = create<DiagramState>((set, get) => ({
           };
 
         default:
-          console.warn("⚠️ Unknown action type:", (action as any).type);
+          // console.warn("⚠️ Unknown action type:", (action as any).type);
           return state;
       }
     });
@@ -287,6 +287,8 @@ export const useDiagramStore = create<DiagramState>((set, get) => ({
   },
 
   buildNode: (type, x, y) => {
+    const SAFE_LEFT = 340; // palette width + padding
+    
     const id = crypto.randomUUID();
     const tpl = NODE_TEMPLATES[type] ?? { width: 120, height: 80, label: type };
 
@@ -294,7 +296,7 @@ export const useDiagramStore = create<DiagramState>((set, get) => ({
       id,
       type,
       label: tpl.label,
-      x,
+      x: Math.max(x, SAFE_LEFT), // ✅ clamp to prevent spawning behind palette
       y,
       width: tpl.width,
       height: tpl.height,

@@ -8,6 +8,7 @@ import {
   useCanvasRenderer,
   useCanvasInteractions,
 } from "@/hooks/canvas";
+import { useBoardViewTransform } from "@/hooks/canvas/useBoardViewTransform";
 import styles from "./room.module.css";
 
 type CanvasProps = {
@@ -33,6 +34,7 @@ export default function Canvas({
   const canvasRefs = useMemo(() => [inkRef, strokesRef, nodesRef], []);
 
   useCanvasResize(wrapperRef, canvasRefs);
+  useBoardViewTransform(wrapperRef);
   useCanvasSeed(wsRef, roomId, userId, wsReady, hasRoomState);
 
   const inkStart = useCallback((x: number, y: number) => {

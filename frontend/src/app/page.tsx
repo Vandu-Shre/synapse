@@ -16,7 +16,7 @@ export default function HomePage() {
       const res = await fetch(`http://localhost:3001/rooms/${roomId}`);
 
       if (!res.ok) {
-        console.error("Room not found");
+        // console.error("Room not found");
         setLoading(false);
         return;
       }
@@ -25,11 +25,11 @@ export default function HomePage() {
       if (data.exists) {
         router.push(`/room/${roomId}`);
       } else {
-        console.error("Room doesn't exist");
+        // console.error("Room doesn't exist");
         setLoading(false);
       }
     } catch (err) {
-      console.error("Failed to validate room:", err);
+      // console.error("Failed to validate room:", err);
       setLoading(false);
     }
   };
@@ -45,7 +45,7 @@ export default function HomePage() {
 
       router.push(`/room/${newRoomId}`);
     } catch (err) {
-      console.error("Failed to create room", err);
+      // console.error("Failed to create room", err);
       setLoading(false);
     }
   };

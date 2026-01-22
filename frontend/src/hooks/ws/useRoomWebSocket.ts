@@ -35,7 +35,7 @@ export function useRoomWebSocket({ roomId, url = "ws://localhost:3001" }: Option
       connectingRef.current = false;
       setSocketStatus("connected");
       setWsReady(true);
-      console.log("✅ WebSocket connected, sending join-room");
+      // console.log("✅ WebSocket connected, sending join-room");
 
       const join: JoinRoomMessage = { type: "join-room", roomId, userId };
       ws.send(JSON.stringify(join));
@@ -44,15 +44,15 @@ export function useRoomWebSocket({ roomId, url = "ws://localhost:3001" }: Option
     ws.onmessage = (evt) => {
       try {
         const msg = JSON.parse(evt.data) as WSMessage;
-        console.log("📨 RECEIVED message type:", msg.type, msg);
+        // console.log("📨 RECEIVED message type:", msg.type, msg);
 
         if (msg.type === "room:state") {
-          console.log(
-            "🔄 Syncing room state (hard reset):",
-            msg.nodes.length, "nodes,",
-            msg.edges.length, "edges,",
-            msg.strokes.length, "strokes"
-          );
+          // console.log(
+          //   "🔄 Syncing room state (hard reset):",
+          //   msg.nodes.length, "nodes,",
+          //   msg.edges.length, "edges,",
+          //   msg.strokes.length, "strokes"
+          // );
           useDiagramStore.getState().setRoomState(msg.nodes ?? [], msg.edges ?? [], msg.strokes ?? []);
           setHasRoomState(true);
           return;
@@ -61,7 +61,7 @@ export function useRoomWebSocket({ roomId, url = "ws://localhost:3001" }: Option
         if ("roomId" in msg && msg.roomId !== roomId) return;
 
         if (msg.type === "diagram:action") {
-          console.log("🎨 Received diagram:action, applying:", msg.action.type);
+          // console.log("🎨 Received diagram:action, applying:", msg.action.type);
           useDiagramStore.getState().applyAction(msg.action);
           return;
         }
@@ -73,7 +73,7 @@ export function useRoomWebSocket({ roomId, url = "ws://localhost:3001" }: Option
           msg.type === "stroke:add" ||
           msg.type === "stroke:delete"
         ) {
-          console.warn("⚠️ Ignoring legacy WS message:", msg.type);
+          // console.warn("⚠️ Ignoring legacy WS message:", msg.type);
           return;
         }
       } catch (e) {
@@ -85,7 +85,7 @@ export function useRoomWebSocket({ roomId, url = "ws://localhost:3001" }: Option
       connectingRef.current = false;
       setSocketStatus("error");
       setWsReady(false);
-      console.error("❌ WebSocket error");
+      // console.error("❌ WebSocket error");
     };
 
     ws.onclose = () => {
@@ -93,7 +93,7 @@ export function useRoomWebSocket({ roomId, url = "ws://localhost:3001" }: Option
       setSocketStatus("disconnected");
       setWsReady(false);
       setHasRoomState(false);
-      console.log("❌ WebSocket closed");
+      // console.log("❌ WebSocket closed");
     };
 
     return () => {

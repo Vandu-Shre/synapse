@@ -1,6 +1,7 @@
 import { useState, useRef, RefObject, useCallback } from "react";
 import { useDiagramStore } from "@/store/useDiagramStore";
 import { useToolStore } from "@/store/useToolStore";
+import { screenToWorld } from "@/lib/viewTransform";
 import { hitTestNode, hitTestStroke, hitTestEdge } from "@/lib/diagram/hitTest";
 import { getNearestPort, isWithinSnapDistance } from "@/lib/diagram/ports";
 import { sendAction } from "@/lib/ws/send";
@@ -50,10 +51,13 @@ export function useCanvasInteractions(
 
   const onDown = useCallback(
     (e: React.MouseEvent) => {
-      const x = e.clientX;
-      const y = e.clientY;
+      const sx = e.clientX;
+      const sy = e.clientY;
 
-      setLastPointer({ x, y });
+      setLastPointer({ x: sx, y: sy });
+      const p = screenToWorld(sx, sy);
+      const x = p.x;
+      const y = p.y;
 
       // Pen/Highlighter: start stroke
       if (tool === "pen" || tool === "highlighter") {
@@ -134,10 +138,13 @@ export function useCanvasInteractions(
 
   const onMove = useCallback(
     (e: React.MouseEvent) => {
-      const x = e.clientX;
-      const y = e.clientY;
+      const sx = e.clientX;
+      const sy = e.clientY;
 
-      setLastPointer({ x, y });
+      setLastPointer({ x: sx, y: sy });
+      const p = screenToWorld(sx, sy);
+      const x = p.x;
+      const y = p.y;
 
       // Active stroke: add points
       if (activeStroke) {
