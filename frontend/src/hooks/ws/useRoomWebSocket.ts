@@ -14,11 +14,26 @@ export function useRoomWebSocket({ roomId, url = "ws://localhost:3001" }: Option
   const { userId, setRoomId, setSocketStatus } = useRoomStore();
   const wsRef = useRef<WebSocket | null>(null);
   const connectingRef = useRef(false);
+  
+  const appliedActionsRef = useRef(new Set<string>());
+  const currentRoomIdRef = useRef<string | null>(null);
 
   const [hasRoomState, setHasRoomState] = useState(false);
   const [wsReady, setWsReady] = useState(false);
 
-  useEffect(() => setRoomId(roomId), [roomId, setRoomId]);
+  // ✅ Handle room ID change: clear history only when joining NEW room
+  useEffect(() => {
+    if (roomId === currentRoomIdRef.current) return;
+
+    console.log("🔄 Room ID changed:", currentRoomIdRef.current, "→", roomId);
+    currentRoomIdRef.current = roomId;
+    
+    // ✅ Clear history when joining a new room
+    useDiagramStore.getState().clearHistory();
+    appliedActionsRef.current.clear();
+    
+    setRoomId(roomId);
+  }, [roomId, setRoomId]);
 
   useEffect(() => {
     if (connectingRef.current || wsRef.current) return;
@@ -35,8 +50,8 @@ export function useRoomWebSocket({ roomId, url = "ws://localhost:3001" }: Option
       connectingRef.current = false;
       setSocketStatus("connected");
       setWsReady(true);
-      // console.log("✅ WebSocket connected, sending join-room");
 
+      console.log("🔌 WebSocket connected, joining room:", roomId);
       const join: JoinRoomMessage = { type: "join-room", roomId, userId };
       ws.send(JSON.stringify(join));
     };
@@ -44,28 +59,62 @@ export function useRoomWebSocket({ roomId, url = "ws://localhost:3001" }: Option
     ws.onmessage = (evt) => {
       try {
         const msg = JSON.parse(evt.data) as WSMessage;
-        // console.log("📨 RECEIVED message type:", msg.type, msg);
 
         if (msg.type === "room:state") {
-          // console.log(
-          //   "🔄 Syncing room state (hard reset):",
-          //   msg.nodes.length, "nodes,",
-          //   msg.edges.length, "edges,",
-          //   msg.strokes.length, "strokes"
-          // );
-          useDiagramStore.getState().setRoomState(msg.nodes ?? [], msg.edges ?? [], msg.strokes ?? []);
+          console.log("📦 Received room:state", {
+            nodes: msg.nodes?.length,
+            edges: msg.edges?.length,
+            strokes: msg.strokes?.length,
+            texts: msg.texts?.length,
+          });
+          
+          // ✅ Apply snapshot WITHOUT clearing history
+          useDiagramStore.getState().setRoomState(
+            msg.nodes ?? [],
+            msg.edges ?? [],
+            msg.strokes ?? [],
+            msg.texts ?? []
+          );
           setHasRoomState(true);
           return;
         }
 
-        if ("roomId" in msg && msg.roomId !== roomId) return;
-
-        if (msg.type === "diagram:action") {
-          // console.log("🎨 Received diagram:action, applying:", msg.action.type);
-          useDiagramStore.getState().applyAction(msg.action);
+        if ("roomId" in msg && msg.roomId !== roomId) {
+          console.warn("⚠️ Message for different room:", msg.roomId, "expected:", roomId);
           return;
         }
 
+        if (msg.type === "diagram:action") {
+          const action = msg.action;
+          
+          console.log("📨 Received diagram:action:", {
+            type: action.type,
+            id: action.id,
+            userId: action.userId,
+            isOwnAction: action.userId === userId,
+            alreadyApplied: appliedActionsRef.current.has(action.id),
+          });
+          
+          // ✅ Skip if we already applied this action locally
+          if (appliedActionsRef.current.has(action.id)) {
+            console.log("  ↳ Skipping (already applied locally)");
+            appliedActionsRef.current.delete(action.id);
+            return;
+          }
+          
+          // ✅ Skip if this is our own action (echoed back)
+          if (action.userId === userId) {
+            console.log("  ↳ Skipping (own action echo)");
+            return;
+          }
+          
+          console.log("  ✅ Applying remote action");
+          // ✅ Apply remote actions but DON'T add to undo stack
+          useDiagramStore.getState().applyAction(action, true);
+          return;
+        }
+
+        // Ignore legacy messages
         if (
           msg.type === "node:add" ||
           msg.type === "node:move" ||
@@ -73,11 +122,10 @@ export function useRoomWebSocket({ roomId, url = "ws://localhost:3001" }: Option
           msg.type === "stroke:add" ||
           msg.type === "stroke:delete"
         ) {
-          // console.warn("⚠️ Ignoring legacy WS message:", msg.type);
           return;
         }
       } catch (e) {
-        console.error("Bad WS message", evt.data);
+        console.error("❌ Bad WS message", evt.data, e);
       }
     };
 
@@ -85,7 +133,6 @@ export function useRoomWebSocket({ roomId, url = "ws://localhost:3001" }: Option
       connectingRef.current = false;
       setSocketStatus("error");
       setWsReady(false);
-      // console.error("❌ WebSocket error");
     };
 
     ws.onclose = () => {
@@ -93,7 +140,6 @@ export function useRoomWebSocket({ roomId, url = "ws://localhost:3001" }: Option
       setSocketStatus("disconnected");
       setWsReady(false);
       setHasRoomState(false);
-      // console.log("❌ WebSocket closed");
     };
 
     return () => {
@@ -103,5 +149,10 @@ export function useRoomWebSocket({ roomId, url = "ws://localhost:3001" }: Option
     };
   }, [roomId, url, userId, setSocketStatus]);
 
-  return { wsRef, wsReady, hasRoomState, userId };
+  const trackLocalAction = (actionId: string) => {
+    console.log("🏷️ Tracking local action:", actionId);
+    appliedActionsRef.current.add(actionId);
+  };
+
+  return { wsRef, wsReady, hasRoomState, userId, trackLocalAction };
 }

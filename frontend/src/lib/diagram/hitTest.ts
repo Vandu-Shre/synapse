@@ -1,4 +1,4 @@
-import type { DiagramNode, DiagramEdge, DiagramStroke } from "@/types/diagram";
+import type { DiagramNode, DiagramEdge, DiagramStroke, DiagramText } from "@/types/diagram";
 import { getPortPosition } from "./ports";
 import { HIT_THRESHOLD } from "@/ui/constants";
 
@@ -104,6 +104,29 @@ export function hitTestEdge(
     const dist = Math.sqrt(distX * distX + distY * distY);
 
     if (dist <= threshold) return edge;
+  }
+  return null;
+}
+
+/**
+ * Performs hit testing to find text at the given coordinates
+ * Searches from top to bottom (reverse order for z-index)
+ * @param x - X coordinate
+ * @param y - Y coordinate
+ * @param texts - Array of texts to test
+ * @returns The topmost text at the coordinates, or null
+ */
+export function hitTestText(
+  x: number,
+  y: number,
+  texts: DiagramText[]
+): DiagramText | null {
+  for (let i = texts.length - 1; i >= 0; i--) {
+    const t = texts[i];
+    const isInside =
+      x >= t.x && x <= t.x + t.width &&
+      y >= t.y && y <= t.y + t.height;
+    if (isInside) return t;
   }
   return null;
 }

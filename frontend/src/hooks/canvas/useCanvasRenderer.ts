@@ -3,7 +3,7 @@
 import { useEffect, RefObject } from "react";
 import { useDiagramStore } from "@/store/useDiagramStore";
 import { useThemeStore } from "@/store/useThemeStore";
-import { renderEdges, renderNodes, renderStrokes, clearCanvas } from "@/lib/diagram/render";
+import { renderEdges, renderNodes, renderStrokes, clearCanvas, renderTexts } from "@/lib/diagram/render";
 import type { EdgeDraft, SnapPreview, ActiveStroke } from "@/lib/diagram/render";
 
 export function useCanvasRenderer(
@@ -17,8 +17,11 @@ export function useCanvasRenderer(
   const nodes = useDiagramStore((s) => s.nodes);
   const edges = useDiagramStore((s) => s.edges);
   const strokes = useDiagramStore((s) => s.strokes);
+  const texts = useDiagramStore((s) => s.texts);
   const selectedNodeId = useDiagramStore((s) => s.selectedNodeId);
   const selectedEdgeId = useDiagramStore((s) => s.selectedEdgeId);
+  const selectedTextId = useDiagramStore((s) => s.selectedTextId);
+  const editingTextId = useDiagramStore((s) => s.editingTextId);
   const theme = useThemeStore((s) => s.theme);
   const isDark = theme === "dark";
 
@@ -55,5 +58,6 @@ export function useCanvasRenderer(
     ctx.setTransform(view.scale, 0, 0, view.scale, view.offsetX, view.offsetY);
     renderEdges(ctx, nodes, edges, selectedEdgeId, edgeDraft, isDark);
     renderNodes(ctx, nodes, selectedNodeId, snapPreview, !!edgeDraft, isDark);
-  }, [nodes, edges, edgeDraft, snapPreview, selectedNodeId, selectedEdgeId, nodesRef, isDark, resizeTick]);
+    renderTexts(ctx, texts, selectedTextId, editingTextId, isDark);
+  }, [nodes, edges, texts, edgeDraft, snapPreview, selectedNodeId, selectedEdgeId, selectedTextId, editingTextId, nodesRef, isDark, resizeTick]);
 }

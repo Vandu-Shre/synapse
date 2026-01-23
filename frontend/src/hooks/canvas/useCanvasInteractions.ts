@@ -2,20 +2,18 @@ import { useState, useRef, RefObject, useCallback } from "react";
 import { useDiagramStore } from "@/store/useDiagramStore";
 import { useToolStore } from "@/store/useToolStore";
 import { screenToWorld } from "@/lib/viewTransform";
-import { hitTestNode, hitTestStroke, hitTestEdge } from "@/lib/diagram/hitTest";
+import { hitTestNode, hitTestStroke, hitTestEdge, hitTestText } from "@/lib/diagram/hitTest";
 import { getNearestPort, isWithinSnapDistance } from "@/lib/diagram/ports";
 import { sendAction } from "@/lib/ws/send";
 import type { DiagramEdge } from "@/types/diagram";
 import type { EdgeDraft, SnapPreview, ActiveStroke } from "@/lib/diagram/render";
 import { THROTTLE, STROKE } from "@/ui/constants";
 
-// Constants
-const THROTTLE_INTERVAL_MS = 30;
-
 type DragState =
   | { mode: "idle" }
   | { mode: "ink" }
-  | { mode: "node"; nodeId: string; offsetX: number; offsetY: number };
+  | { mode: "node"; nodeId: string; offsetX: number; offsetY: number }
+  | { mode: "text"; textId: string; offsetX: number; offsetY: number };
 
 type InkHandlers = {
   inkStart: (x: number, y: number) => void;
@@ -34,9 +32,13 @@ export function useCanvasInteractions(
   const nodes = useDiagramStore((s) => s.nodes);
   const edges = useDiagramStore((s) => s.edges);
   const strokes = useDiagramStore((s) => s.strokes);
+  const texts = useDiagramStore((s) => s.texts);
   const applyAction = useDiagramStore((s) => s.applyAction);
   const setSelectedNodeId = useDiagramStore((s) => s.setSelectedNodeId);
   const setSelectedEdgeId = useDiagramStore((s) => s.setSelectedEdgeId);
+  const setSelectedTextId = useDiagramStore((s) => s.setSelectedTextId);
+  const setEditingTextId = useDiagramStore((s) => s.setEditingTextId);
+  const buildText = useDiagramStore((s) => s.buildText);
 
   const tool = useToolStore((s) => s.tool);
   const setLastPointer = useToolStore((s) => s.setLastPointer);
@@ -47,6 +49,7 @@ export function useCanvasInteractions(
   const [activeStroke, setActiveStroke] = useState<ActiveStroke>(null);
 
   const dragStartRef = useRef<{ nodeId: string; fromX: number; fromY: number } | null>(null);
+  const textDragStartRef = useRef<{ textId: string; fromX: number; fromY: number } | null>(null);
   const lastMoveTimeRef = useRef(0);
   const pendingMoveRef = useRef<null | {
     nodeId: string;
@@ -55,9 +58,21 @@ export function useCanvasInteractions(
     toX: number;
     toY: number;
   }>(null);
+  const pendingTextMoveRef = useRef<null | {
+    textId: string;
+    fromX: number;
+    fromY: number;
+    toX: number;
+    toY: number;
+  }>(null);
 
   const onDown = useCallback(
     (e: React.MouseEvent) => {
+      const currentEditingId = useDiagramStore.getState().editingTextId;
+      if (currentEditingId) {
+        return;
+      }
+
       const sx = e.clientX;
       const sy = e.clientY;
 
@@ -65,8 +80,35 @@ export function useCanvasInteractions(
       const p = screenToWorld(sx, sy);
       const { x, y } = p;
 
+      // Text tool: create new text box and enter edit mode
+      if (tool === "text") {
+        const text = buildText(x - 110, y - 23);
+        const action = {
+          id: crypto.randomUUID(),
+          userId,
+          ts: Date.now(),
+          type: "ADD_TEXT" as const,
+          payload: { text },
+        };
+        
+        console.log("🎨 Text tool: creating ADD_TEXT action", action.id);
+        
+        // ✅ Apply locally first
+        applyAction(action);
+        
+        // ✅ Broadcast to others
+        sendAction(wsRef, roomId, action);
+        
+        // ✅ Set selection and editing intent
+        setSelectedTextId(text.id);
+        setEditingTextId(text.id);
+        
+        return;
+      }
+
       // Pen/Highlighter: start stroke
       if (tool === "pen" || tool === "highlighter") {
+        console.log("✍️ Starting stroke:", tool);
         setActiveStroke({
           id: crypto.randomUUID(),
           tool,
@@ -86,6 +128,9 @@ export function useCanvasInteractions(
             type: "DELETE_STROKE" as const,
             payload: { stroke: hitStroke },
           };
+          
+          console.log("🧹 Eraser: deleting stroke", action.id);
+          
           applyAction(action);
           sendAction(wsRef, roomId, action);
         }
@@ -98,6 +143,25 @@ export function useCanvasInteractions(
         if (hitEdge) {
           setSelectedEdgeId(hitEdge.id);
           setSelectedNodeId(null);
+          setSelectedTextId(null);
+          return;
+        }
+
+        // Check for text click
+        const hitT = hitTestText(x, y, texts);
+        if (hitT) {
+          setSelectedTextId(hitT.id);
+          setSelectedNodeId(null);
+          setSelectedEdgeId(null);
+
+          textDragStartRef.current = { textId: hitT.id, fromX: hitT.x, fromY: hitT.y };
+
+          setDrag({
+            mode: "text",
+            textId: hitT.id,
+            offsetX: x - hitT.x,
+            offsetY: y - hitT.y,
+          });
           return;
         }
       }
@@ -109,6 +173,7 @@ export function useCanvasInteractions(
       if (hit && tool === "select") {
         setSelectedNodeId(hit.id);
         setSelectedEdgeId(null);
+        setSelectedTextId(null);
 
         dragStartRef.current = { nodeId: hit.id, fromX: hit.x, fromY: hit.y };
 
@@ -131,6 +196,7 @@ export function useCanvasInteractions(
       if (tool === "select") {
         setSelectedNodeId(null);
         setSelectedEdgeId(null);
+        setSelectedTextId(null);
       }
 
       // Otherwise, start drawing ink
@@ -139,7 +205,7 @@ export function useCanvasInteractions(
         inkHandlers.inkStart(x, y);
       }
     },
-    [tool, strokes, edges, nodes, userId, applyAction, wsRef, roomId, setLastPointer, setSelectedNodeId, setSelectedEdgeId, inkHandlers]
+    [tool, strokes, edges, nodes, texts, userId, applyAction, wsRef, roomId, setLastPointer, setSelectedNodeId, setSelectedEdgeId, setSelectedTextId, setEditingTextId, buildText, inkHandlers]
   );
 
   const onMove = useCallback(
@@ -169,6 +235,45 @@ export function useCanvasInteractions(
           setSnapPreview({ nodeId: hit.id, port });
         } else {
           setSnapPreview(null);
+        }
+        return;
+      }
+
+      if (drag.mode === "text") {
+        const newX = x - drag.offsetX;
+        const newY = y - drag.offsetY;
+
+        const from = textDragStartRef.current;
+        if (!from || from.textId !== drag.textId) return;
+
+        const action = {
+          id: crypto.randomUUID(),
+          userId,
+          ts: Date.now(),
+          type: "MOVE_TEXT" as const,
+          payload: {
+            textId: drag.textId,
+            from: { x: from.fromX, y: from.fromY },
+            to: { x: newX, y: newY },
+          },
+        };
+
+        applyAction(action);
+
+        // Throttled broadcast
+        const now = Date.now();
+        if (now - lastMoveTimeRef.current >= THROTTLE.mouseMoveMs) {
+          sendAction(wsRef, roomId, action);
+          lastMoveTimeRef.current = now;
+          pendingTextMoveRef.current = null;
+        } else {
+          pendingTextMoveRef.current = {
+            textId: drag.textId,
+            fromX: from.fromX,
+            fromY: from.fromY,
+            toX: newX,
+            toY: newY,
+          };
         }
         return;
       }
@@ -216,10 +321,31 @@ export function useCanvasInteractions(
         inkHandlers.inkMove(x, y);
       }
     },
-    [activeStroke, edgeDraft, drag, nodes, userId, applyAction, wsRef, roomId, setLastPointer, inkHandlers]
+    [activeStroke, edgeDraft, drag, nodes, texts, userId, applyAction, wsRef, roomId, setLastPointer, inkHandlers]
   );
 
   const onUp = useCallback(() => {
+    // Send any pending MOVE_TEXT action
+    if (drag.mode === "text" && pendingTextMoveRef.current) {
+      const pending = pendingTextMoveRef.current;
+      const action = {
+        id: crypto.randomUUID(),
+        userId,
+        ts: Date.now(),
+        type: "MOVE_TEXT" as const,
+        payload: {
+          textId: pending.textId,
+          from: { x: pending.fromX, y: pending.fromY },
+          to: { x: pending.toX, y: pending.toY },
+        },
+      };
+
+      console.log("📍 Final MOVE_TEXT (pending):", action.id);
+      applyAction(action);
+      sendAction(wsRef, roomId, action);
+      pendingTextMoveRef.current = null;
+    }
+
     // Send any pending MOVE_NODE action
     if (drag.mode === "node" && pendingMoveRef.current) {
       const pending = pendingMoveRef.current;
@@ -235,6 +361,7 @@ export function useCanvasInteractions(
         },
       };
 
+      console.log("📍 Final MOVE_NODE (pending):", action.id);
       applyAction(action);
       sendAction(wsRef, roomId, action);
       pendingMoveRef.current = null;
@@ -258,6 +385,7 @@ export function useCanvasInteractions(
         payload: { stroke },
       };
 
+      console.log("✍️ Committing stroke:", action.id);
       applyAction(action);
       sendAction(wsRef, roomId, action);
       setActiveStroke(null);
@@ -305,6 +433,7 @@ export function useCanvasInteractions(
         payload: { edge },
       };
 
+      console.log("🔗 Creating edge:", action.id);
       applyAction(action);
       sendAction(wsRef, roomId, action);
 
@@ -315,8 +444,27 @@ export function useCanvasInteractions(
     }
 
     dragStartRef.current = null;
+    textDragStartRef.current = null;
     setDrag({ mode: "idle" });
-  }, [drag, activeStroke, edgeDraft, nodes, userId, applyAction, wsRef, roomId]);
+  }, [drag, activeStroke, edgeDraft, nodes, texts, userId, applyAction, wsRef, roomId]);
+
+  const onDoubleClick = useCallback(
+    (e: React.MouseEvent) => {
+      const p = screenToWorld(e.clientX, e.clientY);
+      
+      // Check text hit
+      const hitT = hitTestText(p.x, p.y, texts);
+      
+      if (hitT) {
+        setSelectedTextId(hitT.id);
+        setSelectedNodeId(null);
+        setSelectedEdgeId(null);
+        setEditingTextId(hitT.id);
+        return;
+      }
+    },
+    [texts, setSelectedNodeId, setSelectedEdgeId, setSelectedTextId, setEditingTextId]
+  );
 
   return {
     edgeDraft,
@@ -325,5 +473,6 @@ export function useCanvasInteractions(
     onDown,
     onMove,
     onUp,
+    onDoubleClick,
   };
 }

@@ -8,3 +8,5 @@ export { renderStrokes } from "./strokes";
 export type { ActiveStroke } from "./strokes";
 
 export { roundRectPath, clearCanvas } from "./primitives";
+
+export { renderTexts } from "./texts";

@@ -260,6 +260,29 @@
   font-size: 13px;
 }
 
+/* ===== Text Editor ===== */
+.textEditor {
+  position: absolute;
+  z-index: 200;
+  resize: none;
+  border-radius: 14px;
+  padding: 10px;
+  border: 1px solid rgba(109, 94, 252, 0.30);
+  outline: none;
+  background: rgba(255, 255, 255, 0.75);
+  color: rgba(15, 23, 42, 0.92);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  font: 500 14px ui-sans-serif, system-ui, -apple-system;
+  line-height: 18px;
+}
+
+:global(.dark) .textEditor {
+  background: rgba(17, 24, 39, 0.62);
+  color: rgba(255,255,255,0.88);
+  border-color: rgba(199, 210, 254, 0.28);
+}
+
 /* ===== Responsive ===== */
 @media (max-width: 800px) {
   .toolbar {

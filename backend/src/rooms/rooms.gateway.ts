@@ -11,7 +11,7 @@ type JoinRoomMsg = { type: 'join-room'; roomId: string; userId: string };
 type DiagramActionMsg = { type: 'diagram:action'; roomId: string; action: any };
 type DiagramUndoMsg = { type: 'diagram:undo'; roomId: string; userId: string };
 type DiagramRedoMsg = { type: 'diagram:redo'; roomId: string; userId: string };
-type RoomStateMsg = { type: 'room:state'; nodes: any[]; edges: any[]; strokes: any[] };
+type RoomStateMsg = { type: 'room:state'; nodes: any[]; edges: any[]; strokes: any[]; texts: any[] };
 
 // Legacy types (kept for backwards compatibility, but ignored)
 type NodeAddMsg = { type: 'node:add'; roomId: string; userId: string; node: any };
@@ -41,7 +41,7 @@ export class RoomsGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
   private clientRoom = new Map<WebSocket, string>();
   private rooms = new Map<string, Set<WebSocket>>();
-  private roomState = new Map<string, { nodes: any[]; edges: any[]; strokes: any[] }>();
+  private roomState = new Map<string, { nodes: any[]; edges: any[]; strokes: any[]; texts: any[] }>();
   private roomCleanupTimers = new Map<string, NodeJS.Timeout>();
   private undoStacks = new Map<string, Map<string, any[]>>();
   private redoStacks = new Map<string, Map<string, any[]>>();
@@ -106,7 +106,7 @@ export class RoomsGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
     if (!this.rooms.has(roomId)) {
       this.rooms.set(roomId, new Set());
-      this.roomState.set(roomId, { nodes: [], edges: [], strokes: [] });
+      this.roomState.set(roomId, { nodes: [], edges: [], strokes: [], texts: [] });
     } else {
       // Cancel scheduled cleanup if room is being rejoined
       const t = this.roomCleanupTimers.get(roomId);
@@ -122,23 +122,16 @@ export class RoomsGateway implements OnGatewayConnection, OnGatewayDisconnect {
     // Send current room state to the joining client
     const state = this.roomState.get(roomId);
     if (state) {
-      console.log(`📤 Sending room state to client: ${state.nodes.length} nodes, ${state.edges.length} edges, ${state.strokes.length} strokes`);
-      console.log(`   Nodes: ${state.nodes.map((n) => n.id).join(", ") || "none"}`);
-      console.log(`   Edges: ${state.edges.map((e) => e.id).join(", ") || "none"}`);
-      console.log(`   Strokes: ${state.strokes.map((s) => s.id).join(", ") || "none"}`);
-      
       const stateMsg: RoomStateMsg = {
         type: 'room:state',
         nodes: state.nodes,
         edges: state.edges,
         strokes: state.strokes,
+        texts: state.texts,
       };
       
       if (client.readyState === client.OPEN) {
         client.send(JSON.stringify(stateMsg));
-        console.log(`✅ Room state sent successfully`);
-      } else {
-        console.warn(`⚠️ Client not in OPEN state when sending room state`);
       }
     }
   }
@@ -149,6 +142,7 @@ export class RoomsGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
     const msg = JSON.stringify(payload);
     for (const c of set) {
+      if (except && c === except) continue;
       if (c.readyState === c.OPEN) c.send(msg);
     }
   }
@@ -171,60 +165,7 @@ export class RoomsGateway implements OnGatewayConnection, OnGatewayDisconnect {
     return stack;
   }
 
-  private invertAction(action: any, userId: string): any {
-    const base = {
-      id: randomUUID(),
-      userId,
-      ts: Date.now(),
-    };
-
-    if (action.type === 'ADD_NODE') {
-      return { ...base, type: 'DELETE_NODE', payload: { node: action.payload.node, edges: [] } };
-    }
-
-    if (action.type === 'MOVE_NODE') {
-      return {
-        ...base,
-        type: 'MOVE_NODE',
-        payload: {
-          nodeId: action.payload.nodeId,
-          from: action.payload.to,
-          to: action.payload.from,
-        },
-      };
-    }
-
-    if (action.type === 'DELETE_NODE') {
-      return {
-        ...base,
-        type: 'RESTORE_NODE',
-        payload: {
-          node: action.payload.node,
-          edges: action.payload.edges ?? [],
-        },
-      };
-    }
-
-    if (action.type === 'ADD_EDGE') {
-      return { ...base, type: 'DELETE_EDGE', payload: { edge: action.payload.edge } };
-    }
-
-    if (action.type === 'DELETE_EDGE') {
-      return { ...base, type: 'ADD_EDGE', payload: { edge: action.payload.edge } };
-    }
-
-    if (action.type === 'ADD_STROKE') {
-      return { ...base, type: 'DELETE_STROKE', payload: { stroke: action.payload.stroke } };
-    }
-
-    if (action.type === 'DELETE_STROKE') {
-      return { ...base, type: 'ADD_STROKE', payload: { stroke: action.payload.stroke } };
-    }
-
-    return null;
-  }
-
-  private applyActionToRoomState(state: { nodes: any[]; edges: any[]; strokes: any[] }, action: any) {
+  private applyActionToRoomState(state: { nodes: any[]; edges: any[]; strokes: any[]; texts: any[] }, action: any) {
     if (action?.type === 'ADD_NODE') {
       const node = action.payload?.node;
       if (!node?.id) return;
@@ -304,6 +245,132 @@ export class RoomsGateway implements OnGatewayConnection, OnGatewayDisconnect {
       state.strokes = state.strokes.filter((s) => s.id !== strokeId);
       return;
     }
+
+    if (action?.type === "ADD_TEXT") {
+      const text = action.payload?.text;
+      if (!text?.id) return;
+      const idx = state.texts.findIndex((t: any) => t.id === text.id);
+      if (idx === -1) state.texts.push(text);
+      else state.texts[idx] = text;
+      return;
+    }
+
+    if (action?.type === "MOVE_TEXT") {
+      const textId = action.payload?.textId;
+      const to = action.payload?.to;
+      if (!textId || !to) return;
+
+      const text = state.texts.find((t: any) => t.id === textId);
+      if (text) {
+        text.x = to.x;
+        text.y = to.y;
+      }
+      return;
+    }
+
+    if (action?.type === "UPDATE_TEXT") {
+      const textId = action.payload?.textId;
+      const to = action.payload?.to;
+      if (!textId || !to) return;
+
+      const text = state.texts.find((t: any) => t.id === textId);
+      if (text) {
+        Object.assign(text, to);
+      }
+      return;
+    }
+
+    if (action?.type === "DELETE_TEXT") {
+      const textId = action.payload?.text?.id;
+      if (!textId) return;
+      state.texts = state.texts.filter((t: any) => t.id !== textId);
+      return;
+    }
+  }
+
+  private invertAction(action: any, userId: string): any {
+    const base = {
+      id: randomUUID(),
+      userId,
+      ts: Date.now(),
+    };
+
+    if (action.type === 'ADD_NODE') {
+      return { ...base, type: 'DELETE_NODE', payload: { node: action.payload.node, edges: [] } };
+    }
+
+    if (action.type === 'MOVE_NODE') {
+      return {
+        ...base,
+        type: 'MOVE_NODE',
+        payload: {
+          nodeId: action.payload.nodeId,
+          from: action.payload.to,
+          to: action.payload.from,
+        },
+      };
+    }
+
+    if (action.type === 'DELETE_NODE') {
+      return {
+        ...base,
+        type: 'RESTORE_NODE',
+        payload: {
+          node: action.payload.node,
+          edges: action.payload.edges ?? [],
+        },
+      };
+    }
+
+    if (action.type === 'ADD_EDGE') {
+      return { ...base, type: 'DELETE_EDGE', payload: { edge: action.payload.edge } };
+    }
+
+    if (action.type === 'DELETE_EDGE') {
+      return { ...base, type: 'ADD_EDGE', payload: { edge: action.payload.edge } };
+    }
+
+    if (action.type === 'ADD_STROKE') {
+      return { ...base, type: 'DELETE_STROKE', payload: { stroke: action.payload.stroke } };
+    }
+
+    if (action.type === 'DELETE_STROKE') {
+      return { ...base, type: 'ADD_STROKE', payload: { stroke: action.payload.stroke } };
+    }
+
+    if (action.type === "ADD_TEXT") {
+      return { ...base, type: "DELETE_TEXT", payload: { text: action.payload.text } };
+    }
+
+    if (action.type === "MOVE_TEXT") {
+      return {
+        ...base,
+        type: "MOVE_TEXT",
+        payload: {
+          textId: action.payload.textId,
+          from: action.payload.to,
+          to: action.payload.from,
+        },
+      };
+    }
+
+    if (action.type === "UPDATE_TEXT") {
+      return {
+        ...base,
+        type: "UPDATE_TEXT",
+        payload: {
+          textId: action.payload.textId,
+          from: action.payload.to,
+          to: action.payload.from,
+        },
+      };
+    }
+
+    if (action.type === "DELETE_TEXT") {
+      return { ...base, type: "ADD_TEXT", payload: { text: action.payload.text } };
+    }
+
+    return null;
   }
 
   private handleMessage(client: WebSocket, raw: string) {
@@ -359,7 +426,7 @@ export class RoomsGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
       console.log(`   ↳ ${action.type} | undo=${undo.length}, redo=${redo.length}`);
 
-      this.broadcast(roomId, message);
+      this.broadcast(roomId, message, client);
       return;
     }
 
@@ -386,7 +453,7 @@ export class RoomsGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
       console.log(`   ↳ inverse applied | undo=${undo.length}, redo=${redo.length}`);
 
-      this.broadcast(roomId, { type: 'diagram:action', roomId, action: inverse } as any);
+      this.broadcast(roomId, { type: 'diagram:action', roomId, action: inverse } as any, client);
       return;
     }
 
@@ -407,7 +474,7 @@ export class RoomsGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
       console.log(`   ↳ action reapplied | undo=${undo.length}, redo=${redo.length}`);
 
-      this.broadcast(roomId, { type: 'diagram:action', roomId, action: next } as any);
+      this.broadcast(roomId, { type: 'diagram:action', roomId, action: next } as any, client);
       return;
     }
 

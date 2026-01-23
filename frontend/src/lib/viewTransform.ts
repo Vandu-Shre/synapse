@@ -21,3 +21,9 @@ export function screenToWorld(x: number, y: number) {
   const { scale, offsetX, offsetY } = view;
   return { x: (x - offsetX) / scale, y: (y - offsetY) / scale };
 }
+
+// world -> screen
+export function worldToScreen(x: number, y: number) {
+  const { scale, offsetX, offsetY } = view;
+  return { x: x * scale + offsetX, y: y * scale + offsetY };
+}

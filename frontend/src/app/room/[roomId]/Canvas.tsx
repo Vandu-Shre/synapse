@@ -1,7 +1,7 @@
 "use client";
 
 import { RefObject, useRef, useCallback, useMemo } from "react";
-import { CanvasLayers, CanvasHud } from "@/components/canvas";
+import { CanvasLayers, CanvasHud, TextEditorOverlay } from "@/components/canvas";
 import {
   useCanvasResize,
   useCanvasSeed,
@@ -77,6 +77,7 @@ export default function Canvas({
       onMouseLeave={onUp}
     >
       <CanvasLayers inkRef={inkRef} strokesRef={strokesRef} nodesRef={nodesRef} />
+      <TextEditorOverlay wsRef={wsRef} roomId={roomId} userId={userId} />
       <CanvasHud wsRef={wsRef} roomId={roomId} userId={userId} />
     </div>
   );

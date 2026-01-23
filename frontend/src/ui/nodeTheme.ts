@@ -54,10 +54,5 @@ export const NODE_THEME: Record<NodeType, NodeTheme> = {
     fill: `rgba(180, 190, 255, ${FILL_OPACITY_LOW})`,
     stroke: `rgba(180, 190, 255, ${STROKE_OPACITY_STANDARD})`,
     text: TEXT_COLOR,
-  },
-  text: {
-    fill: "rgba(15, 23, 42, 0.03)",
-    stroke: "rgba(15, 23, 42, 0.18)",
-    text: TEXT_COLOR,
-  },
+  }
 };

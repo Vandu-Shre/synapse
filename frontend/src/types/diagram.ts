@@ -5,8 +5,7 @@ export type NodeType =
   | "service"
   | "queue"
   | "cache"
-  | "cloud"
-  | "text";
+  | "cloud";
 
 export type Port = "top" | "right" | "bottom" | "left";
 export type StrokeTool = "pen" | "highlighter";
@@ -37,4 +36,13 @@ export type DiagramStroke = {
   points: StrokePoint[];
   width: number;
   opacity: number;
+};
+
+export type DiagramText = {
+  id: string;
+  x: number;
+  y: number;
+  value: string;
+  width: number;
+  height: number;
 };

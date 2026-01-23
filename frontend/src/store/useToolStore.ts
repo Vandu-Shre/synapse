@@ -1,6 +1,6 @@
 import { create } from "zustand";
 
-export type ToolMode = "select" | "connect" | "pen" | "highlighter" | "eraser";
+export type ToolMode = "select" | "connect" | "text" | "pen" | "highlighter" | "eraser";
 
 type ToolState = {
   tool: ToolMode;

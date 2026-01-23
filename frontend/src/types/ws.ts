@@ -1,5 +1,5 @@
 import type { DiagramAction } from "./actions";
-import type { DiagramNode, DiagramEdge, DiagramStroke } from "./diagram";
+import type { DiagramNode, DiagramEdge, DiagramStroke, DiagramText } from "./diagram";
 
 export type JoinRoomMessage = { type: "join-room"; roomId: string; userId: string };
 
@@ -17,6 +17,7 @@ export type RoomStateMessage = {
   nodes: DiagramNode[];
   edges: DiagramEdge[];
   strokes: DiagramStroke[];
+  texts: DiagramText[];
 };
 
 // Legacy messages (keep if server still sends them)

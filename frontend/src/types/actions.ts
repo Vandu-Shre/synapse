@@ -1,4 +1,4 @@
-import type { DiagramNode, DiagramEdge, DiagramStroke } from "./diagram";
+import type { DiagramNode, DiagramEdge, DiagramStroke, DiagramText } from "./diagram";
 
 type BaseAction = {
   id: string;
@@ -50,6 +50,34 @@ export type DeleteStrokeAction = BaseAction & {
   payload: { stroke: DiagramStroke };
 };
 
+export type AddTextAction = BaseAction & {
+  type: "ADD_TEXT";
+  payload: { text: DiagramText };
+};
+
+export type MoveTextAction = BaseAction & {
+  type: "MOVE_TEXT";
+  payload: {
+    textId: string;
+    from: { x: number; y: number };
+    to: { x: number; y: number };
+  };
+};
+
+export type UpdateTextAction = BaseAction & {
+  type: "UPDATE_TEXT";
+  payload: {
+    textId: string;
+    from: { value: string; width: number; height: number };
+    to: { value: string; width: number; height: number };
+  };
+};
+
+export type DeleteTextAction = BaseAction & {
+  type: "DELETE_TEXT";
+  payload: { text: DiagramText };
+};
+
 export type DiagramAction =
   | AddNodeAction
   | MoveNodeAction
@@ -58,4 +86,8 @@ export type DiagramAction =
   | AddEdgeAction
   | DeleteEdgeAction
   | AddStrokeAction
-  | DeleteStrokeAction;
+  | DeleteStrokeAction
+  | AddTextAction
+  | MoveTextAction
+  | UpdateTextAction
+  | DeleteTextAction;

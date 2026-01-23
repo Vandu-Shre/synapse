@@ -6,6 +6,7 @@ import styles from "@/app/room/[roomId]/room.module.css";
 const tools: Array<{ id: ToolMode; label: string }> = [
   { id: "select", label: "🖱️ Select" },
   { id: "connect", label: "🔗 Connect" },
+  { id: "text", label: "📝 Text" },
   { id: "pen", label: "✍️ Pen" },
   { id: "highlighter", label: "🖍️ Highlight" },
   { id: "eraser", label: "🧽 Eraser" },
@@ -35,7 +36,10 @@ export function Toolbar() {
         return (
           <button
             key={t.id}
-            onClick={() => setTool(t.id)}
+            onClick={() => {
+              console.log("tool ->", t.id);
+              setTool(t.id);
+            }}
             className={`${styles.toolbarButton} ${active ? styles.toolbarButtonActive : ""}`}
             aria-label={text || t.id}
             title={text || t.id}

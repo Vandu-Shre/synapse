@@ -23,7 +23,6 @@ const palette: Array<{ type: NodeType; label: string }> = [
   { type: "queue", label: "📨 Queue" },
   { type: "cache", label: "⚡ Cache" },
   { type: "cloud", label: "☁️ Cloud" },
-  { type: "text", label: "📝 Text" },
 ];
 
 export function NodePalette({
