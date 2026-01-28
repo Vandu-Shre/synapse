@@ -5,13 +5,21 @@ import { WsAdapter } from '@nestjs/platform-ws';
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
 
-  // Native WebSocket support (ws)
   app.useWebSocketAdapter(new WsAdapter(app));
 
+  const corsOrigins = process.env.CORS_ORIGIN
+    ? process.env.CORS_ORIGIN.split(',').map(o => o.trim())
+    : ['http://localhost:3000'];
+
   app.enableCors({
-    origin: 'http://localhost:3000',
+    origin: corsOrigins,
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    credentials: false,
   });
 
-  await app.listen(3001);
+  const port = Number(process.env.PORT ?? 8080);
+  await app.listen(port, '0.0.0.0');
+
+  console.log(`✅ Listening on ${port}`);
 }
 bootstrap();

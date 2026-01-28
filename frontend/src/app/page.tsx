@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 import styles from "./page.module.css";
 import { ThemeToggle } from "@/components/theme/ThemeToggle";
 
-const API_BASE_URL = "http://localhost:3001";
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL!;
 
 export default function HomePage() {
   const [roomId, setRoomId] = useState("");

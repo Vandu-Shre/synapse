@@ -33,7 +33,7 @@ type WSMessage =
   | StrokeDeleteMsg;
 
 @WebSocketGateway({
-  cors: { origin: 'http://localhost:3000' },
+  cors: { origin: process.env.CORS_ORIGIN ?? 'http://localhost:3000' },
 })
 export class RoomsGateway implements OnGatewayConnection, OnGatewayDisconnect {
   @WebSocketServer()
